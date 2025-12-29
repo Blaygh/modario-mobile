@@ -129,7 +129,7 @@ export default function AuthScreen() {
                 </View>
 
                 {/* Middle Section */}
-                <View className="bg-white rounded-3xl p-6 w-full shadow-lg">
+                <View className="bg-white rounded-3xl p-6 w-full shadow-sm">
                     {/* Google */}
                     <TouchableOpacity className="bg-white border border-gray-300 rounded-3xl py-3 px-4 mb-4 flex-row items-center justify-center" onPress={performOAuth}>
                         <SvgUri
