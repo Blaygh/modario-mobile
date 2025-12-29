@@ -1,14 +1,14 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from "expo-linear-gradient";
-import { Link } from 'expo-router';
-import SvgUri from "expo-svg-uri";
-import { AppState, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import * as QueryParams from "expo-auth-session/build/QueryParams";
 import { supabase } from '@/libs/supabase';
 import { makeRedirectUri } from 'expo-auth-session';
-import * as WebBrowser from "expo-web-browser";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
+import { Image } from 'expo-image';
+import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
+import { Link } from 'expo-router';
+import SvgUri from "expo-svg-uri";
+import * as WebBrowser from "expo-web-browser";
+import { AppState, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 AppState.addEventListener('change', (state) => {
     if (state === 'active') {
@@ -113,9 +113,9 @@ export default function AuthScreen() {
                 {/* Top Section */}
                 <View className="mt-5 flex justify-start items-center mb-8">
                     {/* Logo */}
-                    <View className="bg-primary-700 rounded-full w-16 h-16" />
+                    <View className="bg-primary-700 rounded-full w-14 h-14" />
                     {/* App name */}
-                    <Text className="mt-3 text-2xl font-InterBold text-gray-800 tracking-wider">
+                    <Text className="mt-3 text-2xl font-InterBold text-[#1A1A1A] tracking-wider">
                         Modario
                     </Text>
                     {/* Headline */}
@@ -163,7 +163,7 @@ export default function AuthScreen() {
                     </View>
 
                     {/* Continue with Email */}
-                    <Link href="/(auth)/email-entry" asChild>
+                    <Link href="/(onboarding)" asChild>
                         <TouchableOpacity className="bg-primary-700 rounded-3xl py-3 px-4 items-center">
                             <Text className="text-white font-InterMedium text-base tracking-wide">
                                 Continue with Email
