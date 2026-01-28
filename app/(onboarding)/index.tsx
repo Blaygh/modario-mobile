@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
 
                 {/* Start Button */}
                 <View className="mt-16">
-                    <Link href="/(onboarding)/style-preference" asChild>
+                    <Link href="/(onboarding)/style-direction" asChild>
                         <TouchableOpacity className="bg-primary-700 rounded-3xl py-3 px-4 items-center">
                             <Text className="text-white font-InterMedium text-base tracking-wide">
                                 Start

@@ -1,24 +1,21 @@
+import {
+    GoogleSignin,
+    // GoogleSigninButton,
+} from "@react-native-google-signin/google-signin";
 import { supabase } from '@/libs/supabase';
-import { makeRedirectUri } from 'expo-auth-session';
-import * as QueryParams from "expo-auth-session/build/QueryParams";
 import { Image } from 'expo-image';
 import { LinearGradient } from "expo-linear-gradient";
-import * as Linking from "expo-linking";
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import SvgUri from "expo-svg-uri";
-import * as WebBrowser from "expo-web-browser";
-import { AppState, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context"
+import { Toast, ToastDescription, ToastTitle, useToast } from "@/components/ui/toast";
 
-AppState.addEventListener('change', (state) => {
-    if (state === 'active') {
-        supabase.auth.startAutoRefresh()
-    } else {
-        supabase.auth.stopAutoRefresh()
-    }
-})
-WebBrowser.maybeCompleteAuthSession(); // required for web only
-const redirectTo = makeRedirectUri();
+GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+});
 
 function FabricBackground() {
     return (
@@ -67,43 +64,69 @@ function FabricBackground() {
     );
 }
 
-const performOAuth = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-            redirectTo,
-            skipBrowserRedirect: true,
-        },
-    });
-    if (error) throw error;
-    const res = await WebBrowser.openAuthSessionAsync(
-        data?.url ?? "",
-        redirectTo
-    );
-    if (res.type === "success") {
-        const { url } = res;
-        await createSessionFromUrl(url);
-    }
-};
 
-
-const createSessionFromUrl = async (url: string) => {
-    const { params, errorCode } = QueryParams.getQueryParams(url);
-    if (errorCode) throw new Error(errorCode);
-    const { access_token, refresh_token } = params;
-    if (!access_token) return;
-    const { data, error } = await supabase.auth.setSession({
-        access_token,
-        refresh_token,
-    });
-    if (error) throw error;
-    return data.session;
-};
 
 
 export default function AuthScreen() {
-    const url = Linking.useLinkingURL();
-    if (url) createSessionFromUrl(url);
+    const router = useRouter();
+    const toast = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const signInWithGoogle = async () => {
+        try {
+            setIsLoading(true);
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+
+            if (userInfo.data?.idToken) {
+                const { data, error } = await supabase.auth.signInWithIdToken({
+                    provider: "google",
+                    token: userInfo.data.idToken,
+                });
+
+                if (error) {
+                    console.error(error);
+                }
+
+                const user = data?.user;
+
+                if (user) {
+                    router.replace("/(onboarding)");
+                }
+            }
+        } catch (error) {
+            console.error(` ❌ Error during Google sign-in: `, error);
+            toast.show({
+                id: "google-signin-error",
+                render: () => {
+                    const uniqueToastId = `google-signin-error-${Date.now()}`;
+                    return (
+                        <Toast nativeID={uniqueToastId} action="error" variant="solid">
+                            <ToastTitle>Sign-in Failed</ToastTitle>
+                            <ToastDescription>
+                                An error occurred during Google sign-in. Please try again.
+                            </ToastDescription>
+                        </Toast>
+                    )
+                }
+            })
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        (async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                // User is already signed in, redirect to onboarding or main app
+                // Here we assume onboarding is needed; adjust as necessary
+                // Using expo-router's router.replace would be ideal here
+                console.log("User already signed in, redirecting...");
+                router.push("/(onboarding)")
+            }
+        })();
+    }, [router])
 
     return (
         <SafeAreaView className="bg-[#F7F6F3] flex-1">
@@ -131,7 +154,10 @@ export default function AuthScreen() {
                 {/* Middle Section */}
                 <View className="bg-white rounded-3xl p-6 w-full shadow-sm">
                     {/* Google */}
-                    <TouchableOpacity className="bg-white border border-gray-300 rounded-3xl py-3 px-4 mb-4 flex-row items-center justify-center" onPress={performOAuth}>
+                    <TouchableOpacity
+                        disabled={isLoading}
+                        className="bg-white border border-gray-300 rounded-3xl py-3 px-4 mb-4 flex-row items-center justify-center"
+                        onPress={signInWithGoogle}>
                         <SvgUri
                             source={require('@/assets/svgs/google-icon-logo-svgrepo-com.svg')}
                             width={24}

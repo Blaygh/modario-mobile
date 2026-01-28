@@ -9,6 +9,10 @@ export default function OnboardingLayout() {
                 options={{ headerShown: false }}
             />
             <Stack.Screen
+                name="style-direction"
+                options={{ headerShown: false }}
+            />
+            <Stack.Screen
                 name="color-preference"
                 options={{ headerShown: false }}
             />
@@ -20,6 +24,14 @@ export default function OnboardingLayout() {
                 name="occasions"
                 options={{ headerShown: false }}
                 />
+            <Stack.Screen
+                name="avatar"
+                options={{ headerShown: false }}
+            />
+            <Stack.Screen
+                name="done"
+                options={{ headerShown: false }}
+            />
         </Stack>
     )
 }

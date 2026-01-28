@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -10,9 +10,10 @@ import '../global.css';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
-import { useOnlineManager } from '@/hooks/use-online-manager';
 import { useAppState } from '@/hooks/use-app-state';
+import { useOnlineManager } from '@/hooks/use-online-manager';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider, useAuth } from '@/provider/auth-provider';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -26,6 +27,10 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  const { session, initialized } = useAuth()
+  const segments = useSegments()
+  const router = useRouter()
 
   const [loaded, error] = useFonts({
     'Inter-Black': require('../assets/fonts/Inter-Black.otf'),
@@ -43,6 +48,20 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
+  // useEffect(() => {
+  //   if (initialized) {
+  //     if (!session) {
+  //       if (segments[0] !== '(auth)') {
+  //         router.replace('/(auth)/login');
+  //       }
+  //     } else {
+  //       if (segments[0] === '(auth)') {
+  //         router.replace('/(tabs)/home');
+  //       }
+  //     }
+  //   }
+  // }, [initialized, session, segments, router]);
+
   useOnlineManager();
   useAppState();
 
@@ -52,6 +71,7 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthProvider>
       <GluestackUIProvider mode="light">
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack>
@@ -62,6 +82,7 @@ export default function RootLayout() {
           <StatusBar style="auto" />
         </ThemeProvider>
       </GluestackUIProvider>
+      </AuthProvider>
     </QueryClientProvider>
 
   );
