@@ -1,66 +1,43 @@
-import { CheckCircle } from "lucide-react-native";
-import { useEffect } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ProgressBar from '@/components/custom/progress-bar';
+import { STARTER_OUTFITS } from '@/constants/mock-outfits';
+import { Image } from 'expo-image';
+import { Link } from 'expo-router';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function OnboardingDoneScreen() {
-    const check = useSharedValue(0);
+  return (
+    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
+      <ProgressBar progress={6} total={6} />
+      <Text className="mt-8 font-InterBold text-[34px] text-[#1A1A1A]">You&apos;re all set.</Text>
+      <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">We&apos;ll refine your style as you use the app.</Text>
 
-    const checkAnimated = useAnimatedStyle(() => ({
-        opacity: check.value,
-        transform: [
-            {
-                scale: check.value,
-            },
-        ],
-    }))
-
-    useEffect(() => {
-        check.value = withTiming(1, { 
-            duration: 1000 
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    return (
-        <SafeAreaView className="flex-1 bg-[#F7F6F3]">
-            <View className="flex-1 px-6 my-8 items-center justify-center">
-                {/* Icon */}
-                <Animated.View style={checkAnimated}>
-                    <CheckCircle size={48} color="#660033" />
-                </Animated.View>
-
-                {/* Headline */}
-                <Text className="mt-4 text-[22px] font-InterMedium text-[#1A1A1A] text-center">
-                    You’re all set
-                </Text>
-
-                {/* Subtext */}
-                <Text
-                    className="mt-2 text-[15px] font-InterRegular text-[#6B6B6B] text-center"
-                    style={{ maxWidth: 280 }}
-                >
-                    We’ll refine your recommendations as you use Modario.
-                </Text>
-
-                {/* Primary CTA */}
-                <TouchableOpacity
-                    className="mt-8 bg-[#660033] rounded-full py-3 px-6"
-                    onPress={() => console.log("Add your wardrobe pressed")}
-                >
-                    <Text className="text-white font-InterMedium text-base">
-                        Add your wardrobe
-                    </Text>
-                </TouchableOpacity>
-
-                {/* Secondary text */}
-                <Text
-                    className="mt-3 text-[13px] font-InterRegular text-[#6B6B6B] text-center"
-                >
-                    You can adjust preferences anytime
-                </Text>
+      <ScrollView horizontal className="mt-8" showsHorizontalScrollIndicator={false}>
+        <View className="flex-row gap-3 pb-2">
+          {STARTER_OUTFITS.map((outfit) => (
+            <View key={outfit.id} className="w-[220px] overflow-hidden rounded-2xl border border-[#E4E4E4] bg-white">
+              <Image source={{ uri: outfit.image }} style={{ width: '100%', height: 170 }} contentFit="cover" />
+              <View className="p-3">
+                <Text className="font-InterMedium text-base text-[#1A1A1A]">{outfit.title}</Text>
+                <View className="mt-2 self-start rounded-full bg-[#F3E7EE] px-3 py-1">
+                  <Text className="font-InterMedium text-xs text-[#660033]">{outfit.occasion}</Text>
+                </View>
+              </View>
             </View>
-        </SafeAreaView>
-    );
+          ))}
+        </View>
+      </ScrollView>
+
+      <View className="mt-auto gap-3 pb-2 pt-6">
+        <Link href="/(tabs)" asChild>
+          <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4">
+            <Text className="font-InterMedium text-lg text-white">Go to Home</Text>
+          </TouchableOpacity>
+        </Link>
+        <TouchableOpacity className="items-center rounded-2xl border border-[#D7D7D7] bg-white py-4">
+          <Text className="font-InterMedium text-base text-[#6B6B6B]">Improve recommendations later</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 }
