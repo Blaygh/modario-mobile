@@ -48,3 +48,13 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## CI / sandbox web startup tip
+
+If `expo start --web` fails in restricted environments while trying to fetch Expo metadata, use offline mode:
+
+```bash
+npm run web:offline -- --port 8081
+```
+
+This disables doctor network checks and starts Metro/Web in offline mode for local UI validation and screenshot capture.
