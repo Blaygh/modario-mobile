@@ -67,7 +67,6 @@ This disables doctor network checks and starts Metro/Web in offline mode for loc
   - `EXPO_PUBLIC_SUPABASE_URL` must be set and use `https://`
   - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` must be set
 - OAuth/auth flows use PKCE in mobile and web clients.
-- For image uploads, prefer private Supabase Storage buckets + user-scoped object paths + short-lived signed URLs.
 
 ## API contracts for UI integration
 

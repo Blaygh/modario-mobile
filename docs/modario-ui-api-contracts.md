@@ -64,27 +64,6 @@ Hybrid approach:
 
 ---
 
-
-## 2.4 Client Upload Safety (Avatar/Wardrobe Images)
-
-Yes — the client can upload images first to Supabase Storage and then submit only the object path in API contracts **if** the storage model is locked down correctly.
-
-Required controls:
-
-- Use **private buckets** for user-uploaded source images (avatar refs / wardrobe imports).
-- Enforce **RLS storage policies** so users can only write/read objects under their own prefix (for example: `avatars/{auth.uid()}/...` and `wardrobe/{auth.uid()}/...`).
-- Store and exchange **object paths** (not public URLs) in onboarding/wardrobe payloads.
-- Generate access via **signed URLs** on demand for rendering; keep TTL short.
-- Validate MIME type, extension, and max upload size before upload and again server-side before processing.
-- Prefer `upsert: false` with UUID filenames to avoid accidental overwrites.
-- Treat uploaded files as untrusted input in downstream processing pipelines.
-
-Recommended client flow:
-
-1. Upload image to private bucket at user-scoped object path.
-2. Persist object path in onboarding/wardrobe state (`avatar_image_paths`, `source_image_paths`, etc.).
-3. Backend/services resolve temporary signed URLs when processing or rendering.
-
 ## 3) Onboarding Endpoints
 
 ### 3.1 Get Onboarding Bundle
