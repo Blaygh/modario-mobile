@@ -58,3 +58,12 @@ npm run web:offline -- --port 8081
 ```
 
 This disables doctor network checks and starts Metro/Web in offline mode for local UI validation and screenshot capture.
+
+
+## API contracts for UI integration
+
+A reconstructed UI-facing API contract document is available at:
+
+- `docs/modario-ui-api-contracts.md`
+
+Use it as a working integration map until backend publishes a canonical OpenAPI spec.
