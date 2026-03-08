@@ -37,7 +37,7 @@ export default function StylePreferenceScreen() {
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
       <ProgressBar progress={2} total={6} />
 
-      <Text className="mt-7 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Your Style Taste</Text>
+      <Text className="mt-7 pb-1 font-InterBold text-[34px] leading-[44px] text-[#1A1A1A]">Your Style Taste</Text>
       <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Tap 2–3 outfits you&apos;d wear.</Text>
 
       <ScrollView className="mt-5" showsVerticalScrollIndicator={false}>

@@ -1,20 +1,31 @@
 import { AppHeader, FilterChip, PrimaryButton, SectionHeader, TagPill } from '@/components/custom/mvp-ui';
-import { RECOMMENDED_PRODUCTS } from '@/constants/mvp-data';
+import { MORNING_SECTION_IMAGES, RECOMMENDED_PRODUCTS } from '@/constants/mvp-data';
 import { STARTER_OUTFITS } from '@/constants/mock-outfits';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Bell } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
+  const [activeMorningImageIndex, setActiveMorningImageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveMorningImageIndex((prev) => (prev + 1) % MORNING_SECTION_IMAGES.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
       <ScrollView showsVerticalScrollIndicator={false}>
         <AppHeader title="Good morning, Nana" right={<Bell size={20} color="#660033" />} />
 
         <View className="overflow-hidden rounded-[20px] border border-[#E5E5E5] bg-white">
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=1200&q=80' }} style={{ width: '100%', height: 180 }} />
+          <Image source={{ uri: MORNING_SECTION_IMAGES[activeMorningImageIndex] }} style={{ width: '100%', height: 180 }} />
           <View className="bg-[#660033] p-4">
             <Text className="font-InterBold text-[28px] text-white">Today&apos;s Outfit for You</Text>
             <Text className="mt-1 font-InterRegular text-sm text-[#F3E8EC]">Casual • 68°F</Text>

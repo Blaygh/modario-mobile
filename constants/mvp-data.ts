@@ -13,6 +13,12 @@ export const RECOMMENDED_PRODUCTS = [
   { id: 'p3', name: 'Gold Watch', price: '$140', image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=700&q=80' },
 ];
 
+export const MORNING_SECTION_IMAGES = [
+  'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80',
+];
+
 export const IMPORT_DETECTIONS = [
   { id: 'd1', name: 'Beige Blazer', category: 'Outerwear', color: 'Beige', image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=600&q=80' },
   { id: 'd2', name: 'White Blouse', category: 'Top', color: 'White', image: 'https://images.unsplash.com/photo-1485230895905-ec40ba36b9bc?auto=format&fit=crop&w=600&q=80' },
