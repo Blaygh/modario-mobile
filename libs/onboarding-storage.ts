@@ -15,6 +15,7 @@ export type OnboardingProfile = {
 };
 
 export const ONBOARDING_PROFILE_KEY = 'modario-onboarding-profile';
+export const ONBOARDING_COMPLETED_KEY = 'modario-onboarding-completed';
 
 export const defaultOnboardingProfile: OnboardingProfile = {
   styleCardIds: [],
@@ -53,4 +54,13 @@ export async function updateOnboardingProfile(patch: Partial<OnboardingProfile>)
   const next: OnboardingProfile = { ...current, ...patch };
   await AsyncStorage.setItem(ONBOARDING_PROFILE_KEY, JSON.stringify(next));
   return next;
+}
+
+export async function isOnboardingComplete() {
+  const completed = await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY);
+  return completed === 'true';
+}
+
+export async function setOnboardingComplete(completed: boolean) {
+  await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, completed ? 'true' : 'false');
 }
