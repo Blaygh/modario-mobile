@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -21,6 +22,11 @@ export default function BaseModelGenderScreen() {
     }
 
     await updateOnboardingProfile({ baseModelGender: selected });
+    await saveOnboardingState({
+      avatar_mode: 'base',
+      style_direction: selected === 'male' ? 'menswear' : 'womenswear',
+      status: 'saved',
+    });
     router.push('/(onboarding)/base-model-skin-tone');
   };
 

@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -116,11 +117,13 @@ export default function ColorPreferenceScreen() {
     const likedColors = [...neutrals, ...accents];
     const avoidedColors = avoidPresets.includes('no-avoids') ? [] : avoidPresets;
     await updateOnboardingProfile({ likedColors, avoidedColors });
+    await saveOnboardingState({ color_likes: likedColors, color_avoids: avoidedColors, status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
 
   const skip = async () => {
     await updateOnboardingProfile({ likedColors: [], avoidedColors: [] });
+    await saveOnboardingState({ color_likes: [], color_avoids: [], status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
 

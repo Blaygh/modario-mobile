@@ -1,5 +1,6 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { STYLE_TASTE_CARDS } from '@/constants/mock-outfits';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -25,11 +26,13 @@ export default function StylePreferenceScreen() {
 
   const continueNext = async () => {
     await updateOnboardingProfile({ styleCardIds: selectedCards });
+    await saveOnboardingState({ style_picks: selectedCards, status: 'saved' });
     router.push('/(onboarding)/color-preference');
   };
 
   const skip = async () => {
     await updateOnboardingProfile({ styleCardIds: [] });
+    await saveOnboardingState({ style_picks: [], status: 'saved' });
     router.push('/(onboarding)/color-preference');
   };
 
