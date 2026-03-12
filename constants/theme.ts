@@ -27,6 +27,34 @@ export const Colors = {
   },
 };
 
+export const BrandTheme = {
+  palette: {
+    burgundy: '#660033',
+    burgundySoft: '#7F1D47',
+    rose: '#D68AA4',
+    roseFog: '#F3E8EC',
+    ivory: '#FBF7F4',
+    paper: '#FFFFFF',
+    ink: '#1A1A1A',
+    muted: '#6B6B6B',
+    line: '#E9DFE4',
+  },
+  radius: {
+    pill: 999,
+    card: 24,
+    modal: 28,
+  },
+  shadow: {
+    soft: {
+      shadowColor: '#3B1728',
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 4,
+    },
+  },
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

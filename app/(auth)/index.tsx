@@ -6,7 +6,6 @@ import { supabase } from '@/libs/supabase';
 import { Image } from 'expo-image';
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from 'expo-router';
-import SvgUri from "expo-svg-uri";
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -158,11 +157,9 @@ export default function AuthScreen() {
                         disabled={isLoading}
                         className="bg-white border border-gray-300 rounded-3xl py-3 px-4 mb-4 flex-row items-center justify-center"
                         onPress={signInWithGoogle}>
-                        <SvgUri
-                            source={require('@/assets/svgs/google-icon-logo-svgrepo-com.svg')}
-                            width={24}
-                            height={24}
-                        />
+                        <View className="h-6 w-6 items-center justify-center rounded-full bg-[#F7F6F3]">
+                            <Text className="font-InterBold text-sm text-[#660033]">G</Text>
+                        </View>
                         <Text className="ml-4 text-gray-700 font-InterMedium text-base tracking-wide">
                             Continue with Google
                         </Text>
