@@ -1,16 +1,36 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { STYLE_TASTE_CARDS } from '@/constants/mock-outfits';
+import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
+import { useAuth } from '@/provider/auth-provider';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StylePreferenceScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
+  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+
+  useEffect(() => {
+    loadBundleFiltersFromProfile().then(setFilters);
+  }, []);
+
+  const bundleQuery = useQuery({
+    queryKey: ['onboarding-bundle', filters],
+    enabled: !!session?.access_token && !!filters,
+    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const styleCards =
+    bundleQuery.data?.styleCards.filter((card) => card.imageUrl).map((card) => ({ id: card.id, title: card.title, image: card.imageUrl })) ??
+    STYLE_TASTE_CARDS;
 
   const toggle = (id: string) => {
     if (selectedCards.includes(id)) {
@@ -35,14 +55,15 @@ export default function StylePreferenceScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={2} total={6} />
+      <ProgressBar progress={3} total={7} />
 
       <Text className="mt-7 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Your Style Taste</Text>
       <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Tap 2–3 outfits you&apos;d wear.</Text>
 
       <ScrollView className="mt-5" showsVerticalScrollIndicator={false}>
+        {bundleQuery.isLoading && <Text className="mb-3 font-InterRegular text-sm text-[#6B6B6B]">Loading options…</Text>}
         <View className="flex-row flex-wrap gap-3 pb-6">
-          {STYLE_TASTE_CARDS.map((card) => {
+          {styleCards.map((card) => {
             const selected = selectedCards.includes(card.id);
             return (
               <Pressable

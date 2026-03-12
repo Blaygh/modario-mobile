@@ -30,7 +30,7 @@ export default function AvatarScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={5} total={6} />
+      <ProgressBar progress={6} total={7} />
 
       <Text className="mt-8 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">See outfits on a model like you</Text>
       <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Choose how you&apos;d like to preview outfits.</Text>
