@@ -2,16 +2,20 @@ import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { BrandTheme } from '@/constants/theme';
+
+const { palette } = BrandTheme;
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#660033',
+        tabBarActiveTintColor: palette.burgundy,
         tabBarInactiveTintColor: '#8A8A8A',
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E5E5E5' },
+        tabBarStyle: { backgroundColor: palette.paper, borderTopColor: palette.line, height: 64, paddingBottom: 8, paddingTop: 6 },
+        tabBarLabelStyle: { fontFamily: 'Inter-Medium', fontSize: 12 },
       }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} /> }} />
       <Tabs.Screen name="wardrobe" options={{ title: 'Wardrobe', tabBarIcon: ({ color }) => <IconSymbol size={24} name="folder.fill" color={color} /> }} />
