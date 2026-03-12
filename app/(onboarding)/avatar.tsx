@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { saveAvatarReferences, saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Camera, ChevronRight, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
@@ -8,19 +9,26 @@ import { useRouter } from 'expo-router';
 
 const OPTIONS = [
   { id: 'upload' as const, title: 'Upload Photos', description: 'Create a model that resembles you.', icon: Camera },
-  { id: 'base-model' as const, title: 'Choose Base Model', description: 'Use a default avatar.', icon: UserRound },
-  { id: 'skipped' as const, title: 'Skip for Now', description: 'You can set this up later.', icon: ChevronRight },
+  { id: 'base' as const, title: 'Choose Base Model', description: 'Use a default avatar.', icon: UserRound },
+  { id: 'skip' as const, title: 'Skip for Now', description: 'You can set this up later.', icon: ChevronRight },
 ];
 
 export default function AvatarScreen() {
   const router = useRouter();
-  const [choice, setChoice] = useState<'upload' | 'base-model' | 'skipped' | null>(null);
+  const [choice, setChoice] = useState<'upload' | 'base' | 'skip' | null>(null);
 
   const continueFlow = async () => {
-    const selected = choice ?? 'skipped';
+    const selected = choice ?? 'skip';
     await updateOnboardingProfile({ avatarChoice: selected });
 
-    if (selected === 'base-model') {
+    if (selected === 'upload') {
+      // upload flow can add URLs here later; keeping incremental state shape now
+      await saveAvatarReferences([]);
+    }
+
+    await saveOnboardingState({ avatar_mode: selected, avatar_image_urls: [], status: 'saved' });
+
+    if (selected === 'base') {
       router.push('/(onboarding)/base-model-gender');
       return;
     }

@@ -1,3 +1,1 @@
-
-
-export type StyleDirection = "womenswear" | "menswear" | "mixed" | null;
+export type StyleDirection = 'womenswear' | 'menswear' | null;

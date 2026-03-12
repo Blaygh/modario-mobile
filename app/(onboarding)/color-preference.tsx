@@ -1,5 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { getOnboardingBundle, loadBundleFiltersFromProfile, OnboardingColorOption } from '@/libs/onboarding-bundle';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -105,11 +105,13 @@ export default function ColorPreferenceScreen() {
     const likedColors = [...neutrals, ...accents];
     const avoidedColors = avoidPresets.includes('No avoids') ? [] : avoidPresets;
     await updateOnboardingProfile({ likedColors, avoidedColors });
+    await saveOnboardingState({ color_likes: likedColors, color_avoids: avoidedColors, status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
 
   const skip = async () => {
     await updateOnboardingProfile({ likedColors: [], avoidedColors: [] });
+    await saveOnboardingState({ color_likes: [], color_avoids: [], status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
 

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type AvatarChoice = 'upload' | 'base-model' | 'skipped' | null;
+export type AvatarChoice = 'upload' | 'base' | 'skip' | null;
 export type BaseModelGender = 'male' | 'female' | null;
 export type StyleDirection = 'menswear' | 'womenswear' | null;
 

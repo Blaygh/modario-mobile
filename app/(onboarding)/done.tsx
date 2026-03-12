@@ -1,5 +1,6 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { STARTER_OUTFITS } from '@/constants/mock-outfits';
+import { saveOnboardingState, triggerOnboardingProcessing } from '@/libs/onboarding-state';
 import { setOnboardingComplete } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
 import { Image } from 'expo-image';
@@ -12,13 +13,13 @@ export default function OnboardingDoneScreen() {
   const { session } = useAuth();
 
   const finishOnboarding = async () => {
-    const userId = session?.user?.id;
-    if (!userId) {
-      router.replace('/(auth)');
-      return;
+    await saveOnboardingState({ is_complete: true, status: 'saved', last_error: null });
+    try {
+      await triggerOnboardingProcessing();
+    } catch (error) {
+      console.error('Failed to trigger onboarding processing:', error);
     }
-
-    await setOnboardingComplete(userId, true);
+    await setOnboardingComplete(true);
     router.replace('/(tabs)');
   };
 

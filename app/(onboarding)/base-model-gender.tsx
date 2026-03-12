@@ -1,5 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -52,12 +52,11 @@ export default function BaseModelGenderScreen() {
       return;
     }
 
-    const defaults = bundleQuery.data?.baseAvatarFlow?.defaults;
-    await updateOnboardingProfile({
-      styleDirection: chosen,
-      baseModelGender: chosen === 'menswear' ? 'male' : 'female',
-      skinTone: defaults?.skinToneKey ?? 'medium',
-      bodyType: defaults?.bodyTypeKey ?? 'average',
+    await updateOnboardingProfile({ baseModelGender: selected });
+    await saveOnboardingState({
+      avatar_mode: 'base',
+      style_direction: selected === 'male' ? 'menswear' : 'womenswear',
+      status: 'saved',
     });
     router.push('/(onboarding)/base-model-skin-tone');
   };
