@@ -9,7 +9,7 @@ import { Bell } from 'lucide-react-native';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { palette, shadow } = BrandTheme;
+const { palette, radius, shadow } = BrandTheme;
 
 export default function HomeScreen() {
   return (
@@ -17,16 +17,16 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <AppHeader title="Your Daily Edit" eyebrow="modario" right={<Bell size={20} color={palette.burgundy} />} />
 
-        <View className="overflow-hidden rounded-3xl border" style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
+        <View className="overflow-hidden border" style={{ borderColor: palette.line, backgroundColor: palette.paper, borderRadius: radius.modal }}>
           <Image source={{ uri: 'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=1200&q=80' }} style={{ width: '100%', height: 192 }} />
           <LinearGradient colors={[palette.burgundy, palette.burgundySoft]}>
             <View className="p-5">
               <Text className="font-InterBold text-[30px] leading-[34px] text-white">Today&apos;s Signature Look</Text>
               <Text className="mt-1 font-InterRegular text-sm text-[#F8EAF0]">Casual • 68°F • Curated for your palette</Text>
               <View className="mt-3 flex-row gap-2">
-                <FilterChip label="View Outfit" selected />
-                <FilterChip label="♥ Save" selected />
-                <FilterChip label="✦ Plan" selected />
+                <FilterChip label="View Outfit" selected tone="onDark" />
+                <FilterChip label="♥ Save" selected tone="onDark" />
+                <FilterChip label="✦ Plan" selected tone="onDark" />
               </View>
             </View>
           </LinearGradient>
@@ -37,7 +37,7 @@ export default function HomeScreen() {
           <View className="flex-row gap-3">
             {STARTER_OUTFITS.map((outfit) => (
               <Link key={outfit.id} href={{ pathname: '/outfit/[id]', params: { id: outfit.id, source: 'home' } }} asChild>
-                <View className="w-40 overflow-hidden rounded-3xl border" style={{ borderColor: palette.line, backgroundColor: palette.paper, ...shadow.soft }}>
+                <View className="w-40 overflow-hidden border" style={{ borderColor: palette.line, backgroundColor: palette.paper, borderRadius: radius.card, ...shadow.soft }}>
                   <Image source={{ uri: outfit.image }} style={{ width: '100%', height: 110 }} />
                   <View className="p-3">
                     <Text className="font-InterSemiBold text-sm" style={{ color: palette.ink }}>{outfit.title}</Text>
@@ -54,7 +54,7 @@ export default function HomeScreen() {
           <View className="flex-row gap-3">
             {RECOMMENDED_PRODUCTS.map((item) => (
               <Link key={item.id} href={{ pathname: '/discover/item/[id]', params: { id: item.id } }} asChild>
-                <View className="w-36 overflow-hidden rounded-3xl border" style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
+                <View className="w-36 overflow-hidden border" style={{ borderColor: palette.line, backgroundColor: palette.paper, borderRadius: radius.card }}>
                   <Image source={{ uri: item.image }} style={{ width: '100%', height: 88 }} />
                   <View className="p-3">
                     <Text className="font-InterMedium text-xs" style={{ color: palette.ink }}>{item.name}</Text>
@@ -66,7 +66,7 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
 
-        <View className="mb-8 mt-6 rounded-3xl border p-5" style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
+        <View className="mb-8 mt-6 border p-5" style={{ borderColor: palette.line, backgroundColor: palette.paper, borderRadius: radius.card }}>
           <Text className="text-xs uppercase tracking-[1.4px]" style={{ color: palette.burgundySoft }}>Wardrobe Insight</Text>
           <Text className="mt-2 font-InterSemiBold text-xl" style={{ color: palette.ink }}>Your neutrals are beautifully balanced.</Text>
           <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>You wear neutrals 62% of the time. Add one bold accent top to diversify upcoming looks.</Text>

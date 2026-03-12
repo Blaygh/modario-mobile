@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { palette } = BrandTheme;
+const { palette, radius } = BrandTheme;
 
 function Row({ label }: { label: string }) {
   return (
@@ -19,7 +19,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
       <AppHeader title="Settings" eyebrow="account" />
-      <View className="rounded-3xl border bg-white px-4" style={{ borderColor: palette.line }}>
+      <View className="border bg-white px-4" style={{ borderColor: palette.line, borderRadius: radius.card }}>
         <Row label="Notifications" />
         <Row label="Style Preferences" />
         <Row label="Privacy" />

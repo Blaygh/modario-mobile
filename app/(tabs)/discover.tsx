@@ -6,7 +6,7 @@ import { Link } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { palette } = BrandTheme;
+const { palette, radius } = BrandTheme;
 
 export default function DiscoverScreen() {
   return (
@@ -23,7 +23,7 @@ export default function DiscoverScreen() {
         <View className="gap-3 pb-8">
           {RECOMMENDED_PRODUCTS.map((item) => (
             <Link key={item.id} href={{ pathname: '/discover/item/[id]', params: { id: item.id } }} asChild>
-              <View className="flex-row overflow-hidden rounded-3xl border bg-white" style={{ borderColor: palette.line }}>
+              <View className="flex-row overflow-hidden border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
                 <Image source={{ uri: item.image }} style={{ width: 110, height: 110 }} />
                 <View className="flex-1 p-3">
                   <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>{item.name}</Text>

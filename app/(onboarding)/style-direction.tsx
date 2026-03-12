@@ -1,28 +1,84 @@
-import ProgressBar from '@/components/custom/progress-bar';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { Check } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-const OPTIONS = [
-  {
-    key: 'menswear' as const,
-    label: 'Menswear',
-    image: 'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?auto=format&fit=crop&w=700&q=80',
-  },
-  {
-    key: 'womenswear' as const,
-    label: 'Womenswear',
-    image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=700&q=80',
-  },
-];
+import ProgressBar from "@/components/custom/progress-bar";
+import { Toast, ToastDescription, ToastTitle, useToast } from "@/components/ui/toast";
+import { useGetUser } from "@/hooks/use-get-user";
+import { supabase } from "@/libs/supabase";
+import { StyleDirection } from "@/types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import { ChevronRight, Square } from "lucide-react-native"; // Neutral icons
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Spinner from 'react-native-loading-spinner-overlay';
 
 export default function StyleDirectionScreen() {
-  const router = useRouter();
-  const [selected, setSelected] = useState<'menswear' | 'womenswear' | null>(null);
+    const router = useRouter();
+    const [selectedCard, setSelectedCard] = useState<string | null>(null);
+    const queryClient = useQueryClient();
+    const { data: user } = useGetUser()
+    const toast = useToast();
+
+    const cards = [
+        {
+            id: "womenswear" as StyleDirection,
+            title: "Womenswear-leaning",
+            subtext: "Dresses, skirts, soft tailoring",
+            icon: <Text className="font-InterSemiBold text-sm text-[#660033]">W</Text>
+        },
+        {
+            id: "menswear" as StyleDirection,
+            title: "Menswear-leaning",
+            subtext: "Structured fits, classic silhouettes",
+            icon: <Text className="font-InterSemiBold text-sm text-[#660033]">M</Text>
+        },
+        {
+            id: "mixed" as StyleDirection,
+            title: "Mixed / Show both",
+            subtext: "A blend of styles",
+            icon: <Text className="font-InterSemiBold text-sm text-[#660033]">MX</Text>
+        },
+    ];
+
+    const handleUpdateStyleDirection = useMutation({
+        mutationFn: async (id: StyleDirection) => {
+            const { error } = await supabase.from("onboarding_states")
+                .upsert({
+                    style_direction: id,
+                    user_id: user?.id,
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: "user_id", ignoreDuplicates: false });
+
+            if (error) {
+                console.error("Error updating style direction:", error);
+                throw new Error("Failed to update style direction");
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['onboarding-state'] });
+            setTimeout(() => {
+                router.push("/(onboarding)/style-preference"); // Auto-advance to the next screen
+            }, 200);
+        },
+        onError: (error) => {
+            toast.show({
+                id: "update-style-direction-error",
+                render: () => {
+                    const uniqueToastId = `update-style-direction-error-${Date.now()}`;
+                    return (
+                        <Toast nativeID={uniqueToastId} action="error" variant="solid">
+                            <ToastTitle>
+                                Update Failed
+                            </ToastTitle>
+                            <ToastDescription>
+                                {error instanceof Error ? error.message : "An error occurred while updating your style direction. Please try again."}
+                            </ToastDescription>
+                        </Toast>
+                    )
+                }
+            })
+        }
+    })
 
   const onContinue = async () => {
     const value = selected ?? 'womenswear';

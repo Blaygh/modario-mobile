@@ -9,7 +9,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const FILTERS = ['All', 'Tops', 'Bottoms', 'Shoes', 'Outerwear', 'Accessories'];
-const { palette, shadow } = BrandTheme;
+const { palette, radius, shadow } = BrandTheme;
 
 export default function WardrobeOverviewScreen() {
   const [active, setActive] = useState('All');
@@ -30,7 +30,7 @@ export default function WardrobeOverviewScreen() {
         <View className="flex-row flex-wrap justify-between gap-y-3">
           {items.map((item) => (
             <Link key={item.id} href={{ pathname: '/wardrobe/item/[id]', params: { id: item.id } }} asChild>
-              <Pressable className="w-[48%] overflow-hidden rounded-3xl border bg-white" style={{ borderColor: palette.line }}>
+              <Pressable className="w-[48%] overflow-hidden border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
                 <Image source={{ uri: item.image }} style={{ width: '100%', height: 130 }} />
                 <View className="p-2.5">
                   <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{item.name}</Text>
