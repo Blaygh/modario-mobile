@@ -1,18 +1,18 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import '../global.css';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { useAppState } from '@/hooks/use-app-state';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useOnlineManager } from '@/hooks/use-online-manager';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { isOnboardingComplete } from '@/libs/onboarding-storage';
 import { AuthProvider, useAuth } from '@/provider/auth-provider';
 
 export const unstable_settings = {
@@ -25,12 +25,67 @@ const queryClient = new QueryClient({
 
 SplashScreen.preventAutoHideAsync();
 
+function AppNavigator() {
+  const { session, initialized } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOnboardingState = async () => {
+      const userId = session?.user?.id;
+      const completed = userId ? await isOnboardingComplete(userId) : false;
+      if (isMounted) {
+        setHasCompletedOnboarding(completed);
+      }
+    };
+
+    loadOnboardingState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
+  useEffect(() => {
+    if (!initialized || hasCompletedOnboarding === null) {
+      return;
+    }
+
+    const rootSegment = segments[0];
+
+    if (!session) {
+      if (rootSegment !== '(auth)') {
+        router.replace('/(auth)');
+      }
+      return;
+    }
+
+    if (!hasCompletedOnboarding) {
+      if (rootSegment !== '(onboarding)') {
+        router.replace('/(onboarding)');
+      }
+      return;
+    }
+
+    if (rootSegment !== '(tabs)') {
+      router.replace('/(tabs)');
+    }
+  }, [hasCompletedOnboarding, initialized, router, segments, session]);
+
+  return (
+    <Stack>
+      <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-
-  const { session, initialized } = useAuth()
-  const segments = useSegments()
-  const router = useRouter()
 
   const [loaded, error] = useFonts({
     'Inter-Black': require('../assets/fonts/Inter-Black.otf'),
@@ -48,20 +103,6 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  // useEffect(() => {
-  //   if (initialized) {
-  //     if (!session) {
-  //       if (segments[0] !== '(auth)') {
-  //         router.replace('/(auth)/login');
-  //       }
-  //     } else {
-  //       if (segments[0] === '(auth)') {
-  //         router.replace('/(tabs)/home');
-  //       }
-  //     }
-  //   }
-  // }, [initialized, session, segments, router]);
-
   useOnlineManager();
   useAppState();
 
@@ -72,18 +113,13 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-      <GluestackUIProvider mode="light">
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </GluestackUIProvider>
+        <GluestackUIProvider mode="light">
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </GluestackUIProvider>
       </AuthProvider>
     </QueryClientProvider>
-
   );
 }
