@@ -40,6 +40,9 @@ function AppNavigator() {
       }
 
       const userId = session?.user?.id;
+      if (isMounted) {
+        setHasCompletedOnboarding(null);
+      }
       const completed = userId ? await isOnboardingComplete(userId) : false;
       if (isMounted) {
         setHasCompletedOnboarding(completed);
@@ -51,7 +54,7 @@ function AppNavigator() {
     return () => {
       isMounted = false;
     };
-  }, [segments, session]);
+  }, [session?.user?.id, segments]);
 
   useEffect(() => {
     if (!initialized || hasCompletedOnboarding === null) {
