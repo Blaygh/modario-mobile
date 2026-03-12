@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { BriefcaseBusiness, CalendarCheck2, Check, Dumbbell, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
@@ -29,11 +30,13 @@ export default function OccasionsScreen() {
 
   const continueNext = async () => {
     await updateOnboardingProfile({ occasions: selected });
+    await saveOnboardingState({ occasions: selected, status: 'saved' });
     router.push('/(onboarding)/avatar');
   };
 
   const skip = async () => {
     await updateOnboardingProfile({ occasions: [] });
+    await saveOnboardingState({ occasions: [], status: 'saved' });
     router.push('/(onboarding)/avatar');
   };
 
