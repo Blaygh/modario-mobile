@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type AvatarChoice = 'upload' | 'base-model' | 'skipped' | null;
 export type BaseModelGender = 'male' | 'female' | null;
+export type StyleDirection = 'menswear' | 'womenswear' | null;
 
 export type OnboardingProfile = {
   styleCardIds: string[];
@@ -9,13 +10,16 @@ export type OnboardingProfile = {
   avoidedColors: string[];
   occasions: string[];
   avatarChoice: AvatarChoice;
+  styleDirection: StyleDirection;
   baseModelGender: BaseModelGender;
   skinTone: string | null;
   bodyType: string | null;
 };
 
 export const ONBOARDING_PROFILE_KEY = 'modario-onboarding-profile';
-export const ONBOARDING_COMPLETED_KEY = 'modario-onboarding-completed';
+const ONBOARDING_COMPLETED_KEY_PREFIX = 'modario-onboarding-completed';
+
+const onboardingCompletionKey = (userId: string) => `${ONBOARDING_COMPLETED_KEY_PREFIX}:${userId}`;
 
 export const defaultOnboardingProfile: OnboardingProfile = {
   styleCardIds: [],
@@ -23,6 +27,7 @@ export const defaultOnboardingProfile: OnboardingProfile = {
   avoidedColors: [],
   occasions: [],
   avatarChoice: null,
+  styleDirection: null,
   baseModelGender: null,
   skinTone: null,
   bodyType: null,
@@ -56,11 +61,11 @@ export async function updateOnboardingProfile(patch: Partial<OnboardingProfile>)
   return next;
 }
 
-export async function isOnboardingComplete() {
-  const completed = await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY);
+export async function isOnboardingComplete(userId: string) {
+  const completed = await AsyncStorage.getItem(onboardingCompletionKey(userId));
   return completed === 'true';
 }
 
-export async function setOnboardingComplete(completed: boolean) {
-  await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, completed ? 'true' : 'false');
+export async function setOnboardingComplete(userId: string, completed: boolean) {
+  await AsyncStorage.setItem(onboardingCompletionKey(userId), completed ? 'true' : 'false');
 }

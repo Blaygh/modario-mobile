@@ -1,6 +1,7 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { STARTER_OUTFITS } from '@/constants/mock-outfits';
 import { setOnboardingComplete } from '@/libs/onboarding-storage';
+import { useAuth } from '@/provider/auth-provider';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -8,15 +9,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function OnboardingDoneScreen() {
   const router = useRouter();
+  const { session } = useAuth();
 
   const finishOnboarding = async () => {
-    await setOnboardingComplete(true);
+    const userId = session?.user?.id;
+    if (!userId) {
+      router.replace('/(auth)');
+      return;
+    }
+
+    await setOnboardingComplete(userId, true);
     router.replace('/(tabs)');
   };
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={6} total={6} />
+      <ProgressBar progress={7} total={7} />
       <Text className="mt-8 font-InterBold text-[34px] text-[#1A1A1A]">You&apos;re all set.</Text>
       <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">We&apos;ll refine your style as you use the app.</Text>
 

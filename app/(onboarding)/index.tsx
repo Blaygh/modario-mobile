@@ -22,7 +22,7 @@ export default function WelcomeScreen() {
           </Link>
         </View>
 
-        <ProgressBar progress={1} total={6} />
+        <ProgressBar progress={1} total={7} />
 
         <Image
           source={{ uri: 'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1200&q=80' }}
@@ -38,7 +38,7 @@ export default function WelcomeScreen() {
         </Text>
 
         <View className="mt-auto gap-3 pb-2">
-          <Link href="/(onboarding)/style-preference" asChild>
+          <Link href="/(onboarding)/style-direction" asChild>
             <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4">
               <Text className="font-InterMedium text-lg text-white">Start</Text>
             </TouchableOpacity>
