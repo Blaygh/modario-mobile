@@ -1,23 +1,45 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
+import { useAuth } from '@/provider/auth-provider';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { BriefcaseBusiness, CalendarCheck2, Check, Dumbbell, Sparkles } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 
-const OCCASIONS = [
-  { id: 'Everyday', icon: Sparkles },
-  { id: 'Work', icon: BriefcaseBusiness },
-  { id: 'Night Out', icon: CalendarCheck2 },
-  { id: 'Events', icon: CalendarCheck2 },
-  { id: 'Fitness', icon: Dumbbell },
-];
+const ICON_BY_LABEL: Record<string, any> = {
+  Everyday: Sparkles,
+  Work: BriefcaseBusiness,
+  'Night Out': CalendarCheck2,
+  Events: CalendarCheck2,
+  Fitness: Dumbbell,
+};
+
+const FALLBACK_OCCASIONS = ['Everyday', 'Work', 'Night Out', 'Events', 'Fitness'];
 
 export default function OccasionsScreen() {
   const router = useRouter();
+  const { session } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
+  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+
+  useEffect(() => {
+    loadBundleFiltersFromProfile().then(setFilters);
+  }, []);
+
+  const bundleQuery = useQuery({
+    queryKey: ['onboarding-bundle', filters],
+    enabled: !!session?.access_token && !!filters,
+    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const occasions = useMemo(() => {
+    const labels = bundleQuery.data?.occasions.map((occasion) => occasion.label) ?? [];
+    return labels.length ? labels : FALLBACK_OCCASIONS;
+  }, [bundleQuery.data?.occasions]);
 
   const toggleOccasion = (occasion: string) => {
     if (selected.includes(occasion)) {
@@ -42,18 +64,19 @@ export default function OccasionsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={4} total={6} />
+      <ProgressBar progress={5} total={7} />
       <Text className="mt-8 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Where will you wear these outfits?</Text>
       <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Choose the occasions you care about.</Text>
+      {bundleQuery.isLoading && <Text className="mt-4 font-InterRegular text-sm text-[#6B6B6B]">Loading options…</Text>}
 
       <View className="mt-7 gap-3">
-        {OCCASIONS.map((occasion) => {
-          const active = selected.includes(occasion.id);
-          const Icon = occasion.icon;
+        {occasions.map((occasion) => {
+          const active = selected.includes(occasion);
+          const Icon = ICON_BY_LABEL[occasion] ?? Sparkles;
           return (
             <Pressable
-              key={occasion.id}
-              onPress={() => toggleOccasion(occasion.id)}
+              key={occasion}
+              onPress={() => toggleOccasion(occasion)}
               className="flex-row items-center justify-between rounded-2xl px-4 py-4"
               style={{
                 borderWidth: 1,
@@ -62,7 +85,7 @@ export default function OccasionsScreen() {
               }}>
               <View className="flex-row items-center gap-3">
                 <Icon size={20} color={active ? '#660033' : '#6B6B6B'} />
-                <Text className="font-InterMedium text-lg text-[#1A1A1A]">{occasion.id}</Text>
+                <Text className="font-InterMedium text-lg text-[#1A1A1A]">{occasion}</Text>
               </View>
               {active ? <Check size={20} color="#660033" /> : <View className="h-5 w-5 rounded-full border border-[#C8C8C8]" />}
             </Pressable>
