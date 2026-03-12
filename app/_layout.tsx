@@ -35,6 +35,10 @@ function AppNavigator() {
     let isMounted = true;
 
     const loadOnboardingState = async () => {
+      if (isMounted) {
+        setHasCompletedOnboarding(null);
+      }
+
       const userId = session?.user?.id;
       if (isMounted) {
         setHasCompletedOnboarding(null);
