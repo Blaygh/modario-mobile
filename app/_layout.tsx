@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 import '../global.css';
 
@@ -12,7 +12,6 @@ import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useOnlineManager } from '@/hooks/use-online-manager';
-import { isOnboardingComplete } from '@/libs/onboarding-storage';
 import { AuthProvider, useAuth } from '@/provider/auth-provider';
 
 export const unstable_settings = {
@@ -26,61 +25,21 @@ const queryClient = new QueryClient({
 SplashScreen.preventAutoHideAsync();
 
 function AppNavigator() {
-  const { session, initialized } = useAuth();
+  const { initialized } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadOnboardingState = async () => {
-      if (isMounted) {
-        setHasCompletedOnboarding(null);
-      }
-
-      const userId = session?.user?.id;
-      if (isMounted) {
-        setHasCompletedOnboarding(null);
-      }
-      const completed = userId ? await isOnboardingComplete(userId) : false;
-      if (isMounted) {
-        setHasCompletedOnboarding(completed);
-      }
-    };
-
-    loadOnboardingState();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [session?.user?.id, segments]);
-
-  useEffect(() => {
-    if (!initialized || hasCompletedOnboarding === null) {
+    if (!initialized) {
       return;
     }
 
     const rootSegment = segments[0];
 
-    if (!session) {
-      if (rootSegment !== '(auth)') {
-        router.replace('/(auth)');
-      }
-      return;
+    if (rootSegment === '(auth)') {
+      router.replace('/(onboarding)');
     }
-
-    if (!hasCompletedOnboarding) {
-      if (rootSegment !== '(onboarding)') {
-        router.replace('/(onboarding)');
-      }
-      return;
-    }
-
-    if (rootSegment !== '(tabs)') {
-      router.replace('/(tabs)');
-    }
-  }, [hasCompletedOnboarding, initialized, router, segments, session]);
+  }, [initialized, router, segments]);
 
   return (
     <Stack>
