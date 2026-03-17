@@ -2,9 +2,10 @@ import * as Crypto from 'expo-crypto';
 
 import { supabase } from '@/libs/supabase';
 
-const WARDROBE_IMPORTS_ENDPOINT = 'http://api.modario.io/wardrobe/imports';
+const WARDROBE_API_BASE = 'https://api.modario.io';
+const WARDROBE_IMPORTS_ENDPOINT = `${WARDROBE_API_BASE}/wardrobe/imports`;
 
-type ImportSession = {
+export type ImportSession = {
   id: string;
   user_id: string;
   mode: string;
@@ -15,8 +16,32 @@ type ImportSession = {
   updated_at: string;
 };
 
-type ImportSessionsResponse = {
+export type ImportSessionsResponse = {
   import_sessions: ImportSession[];
+};
+
+export type ImportDetectedItem = {
+  detected_item_id: string;
+  role_suggestion: string | null;
+  label: string | null;
+  confidence: number | null;
+  crop: Record<string, unknown>;
+  crop_storage_url: string | null;
+  attributes_preview: Record<string, unknown>;
+};
+
+export type ImportSessionDetailsResponse = {
+  import_session: {
+    id: string;
+    user_id: string;
+    mode: string;
+    status: string;
+    last_error: string | null;
+  };
+  source_image: {
+    storage_url: string;
+  };
+  detected_items: ImportDetectedItem[];
 };
 
 const fileExtensionFromUri = (uri: string) => {
@@ -76,3 +101,59 @@ export async function createWardrobeImports(accessToken: string, sourceImageUrls
 
   return (await response.json()) as ImportSessionsResponse;
 }
+
+export async function listWardrobeImports(accessToken: string, limit = 20, offset = 0) {
+  const response = await fetch(`${WARDROBE_IMPORTS_ENDPOINT}?limit=${limit}&offset=${offset}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to list wardrobe imports (${response.status})`);
+  }
+
+  return (await response.json()) as ImportSessionsResponse;
+}
+
+export async function getWardrobeImportDetails(accessToken: string, importSessionId: string) {
+  const response = await fetch(`${WARDROBE_IMPORTS_ENDPOINT}/${importSessionId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load import details (${response.status})`);
+  }
+
+  return (await response.json()) as ImportSessionDetailsResponse;
+}
+
+export async function commitWardrobeImportDecisions(
+  accessToken: string,
+  importSessionId: string,
+  decisions: Array<{ detected_item_id: string; include: boolean }>,
+) {
+  const response = await fetch(`${WARDROBE_IMPORTS_ENDPOINT}/${importSessionId}/commit`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ decisions }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to commit import decisions (${response.status})`);
+  }
+}
+
+export const isReviewRequiredStatus = (status: string | null | undefined) => {
+  const value = (status ?? '').toLowerCase();
+  return value.includes('review');
+};
