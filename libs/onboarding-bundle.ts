@@ -76,9 +76,7 @@ export type OnboardingBundle = {
 };
 
 type BundleFilters = {
-  gender?: string;
-  skinTone?: string;
-  bodyType?: string;
+  styleDirection?: 'menswear' | 'womenswear';
 };
 
 const normalizeHex = (value: string | undefined) => {
@@ -91,38 +89,36 @@ const normalizeModel = (raw: any): BaseAvatarModel => ({
   key: raw?.key ?? '',
   displayName: raw?.display_name,
   styleDirection: raw?.style_direction,
-  skinToneKey: raw?.skin_tone_key,
-  bodyTypeKey: raw?.body_type_key,
+  skinToneKey: raw?.skin_tone_key ?? raw?.skin_tone_preset?.key,
+  bodyTypeKey: raw?.body_type_key ?? raw?.body_type_preset?.key,
   imageUrl: raw?.image_url ?? '',
 });
 
 export const loadBundleFiltersFromProfile = async (): Promise<Required<BundleFilters>> => {
   const profile = await getOnboardingProfile();
-  const gender = profile.styleDirection === 'menswear' || profile.baseModelGender === 'male' ? 'male' : 'female';
+  const styleDirection =
+    profile.styleDirection === 'menswear' || profile.styleDirection === 'womenswear'
+      ? profile.styleDirection
+      : profile.baseModelGender === 'male'
+        ? 'menswear'
+        : 'womenswear';
 
   return {
-    gender,
-    skinTone: profile.skinTone ?? 'medium',
-    bodyType: profile.bodyType ?? 'average',
+    styleDirection,
   };
 };
 
 export async function getOnboardingBundle(accessToken: string, filters: BundleFilters): Promise<OnboardingBundle> {
-  const query = new URLSearchParams();
-
-  if (filters.gender) query.set('gender', filters.gender);
-  if (filters.skinTone) query.set('skin_tone', filters.skinTone);
-  if (filters.bodyType) query.set('body_type', filters.bodyType);
-
-  const url = `${supabaseUrl}/functions/v1/get-onboarding-bundle?${query.toString()}`;
+  const url = `${supabaseUrl}/functions/v1/get-onboarding-bundle`;
 
   const response = await fetch(url, {
-    method: 'GET',
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       apikey: supabasePublishableKey,
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify({ style_direction: filters.styleDirection ?? 'womenswear' }),
   });
 
   if (!response.ok) {
@@ -182,11 +178,11 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
     styleCards: styleCardsRaw.map((card: any) => ({
       id: card.id,
       title: card.title,
-      imageUrl: card?.variant?.image_url ?? card?.Variant?.image_url ?? card?.image_url ?? '',
+      imageUrl: card?.variant?.img_url ?? card?.variant?.image_url ?? card?.Variant?.img_url ?? card?.Variant?.image_url ?? card?.image_url ?? '',
     })),
     colors: colorOptionsRaw.map((option: any) => ({
       id: option.id ?? option.key ?? option.name,
-      name: option.name,
+      name: option.name ?? option.label ?? option.key,
       hex: normalizeHex(option.hex ?? option.color_hex),
       family: option.family === 'neutral' ? 'neutral' : 'accent',
     })),
