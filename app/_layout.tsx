@@ -35,7 +35,15 @@ function AppNavigator() {
     let isMounted = true;
 
     const loadOnboardingState = async () => {
-      const completed = await isOnboardingComplete();
+      if (isMounted) {
+        setHasCompletedOnboarding(null);
+      }
+
+      const userId = session?.user?.id;
+      if (isMounted) {
+        setHasCompletedOnboarding(null);
+      }
+      const completed = userId ? await isOnboardingComplete(userId) : false;
       if (isMounted) {
         setHasCompletedOnboarding(completed);
       }
@@ -46,7 +54,7 @@ function AppNavigator() {
     return () => {
       isMounted = false;
     };
-  }, [session]);
+  }, [session?.user?.id, segments]);
 
   useEffect(() => {
     if (!initialized || hasCompletedOnboarding === null) {
