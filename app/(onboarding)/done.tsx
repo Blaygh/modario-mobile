@@ -19,7 +19,9 @@ export default function OnboardingDoneScreen() {
     } catch (error) {
       console.error('Failed to trigger onboarding processing:', error);
     }
-    await setOnboardingComplete(true);
+    if (session?.user?.id) {
+      await setOnboardingComplete(session.user.id, true);
+    }
     router.replace('/(tabs)');
   };
 

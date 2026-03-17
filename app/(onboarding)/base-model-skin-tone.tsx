@@ -14,7 +14,7 @@ export default function BaseModelSkinToneScreen() {
   const { session } = useAuth();
   const [styleDirection, setStyleDirection] = useState<'menswear' | 'womenswear'>('womenswear');
   const [selected, setSelected] = useState<string | null>(null);
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
     loadBundleFiltersFromProfile().then(setFilters);

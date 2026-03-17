@@ -1,5 +1,6 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { STYLE_TASTE_CARDS } from '@/constants/mock-outfits';
+import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
 import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
@@ -15,7 +16,7 @@ export default function StylePreferenceScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
     loadBundleFiltersFromProfile().then(setFilters);
