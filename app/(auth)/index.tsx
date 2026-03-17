@@ -146,7 +146,7 @@ export default function AuthScreen() {
             <LinearGradient colors={['transparent', '#E0E0E0']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={{ flex: 1, height: 1 }} />
           </View>
 
-          <Link href="/(onboarding)" asChild>
+          <Link href="/(auth)/email-entry" asChild>
             <TouchableOpacity className="items-center px-4 py-3" style={{ backgroundColor: palette.burgundy, borderRadius: radius.pill }}>
               <Text className="text-base tracking-wide text-white" style={{ fontFamily: 'Inter-Medium' }}>
                 Continue with Email
