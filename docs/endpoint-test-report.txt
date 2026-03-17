@@ -1,0 +1,52 @@
+Using Supabase URL: https://bcaajafisvrttvinjfad.supabase.co
+Project host: bcaajafisvrttvinjfad.supabase.co
+
+=== Auth user ===
+GET https://bcaajafisvrttvinjfad.supabase.co/auth/v1/user
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== Onboarding bundle (GET) ===
+GET https://bcaajafisvrttvinjfad.supabase.co/functions/v1/get-onboarding-bundle?gender=female&skin_tone=medium&body_type=average
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== Onboarding bundle (POST) ===
+POST https://bcaajafisvrttvinjfad.supabase.co/functions/v1/get-onboarding-bundle
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== Process onboarding ===
+POST https://bcaajafisvrttvinjfad.supabase.co/functions/v1/process-onboarding
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== Onboarding states table ===
+GET https://bcaajafisvrttvinjfad.supabase.co/rest/v1/onboarding_states?select=*&limit=1
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== User profiles table ===
+GET https://bcaajafisvrttvinjfad.supabase.co/rest/v1/user_profiles?select=*&limit=1
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
+=== User images table ===
+GET https://bcaajafisvrttvinjfad.supabase.co/rest/v1/user_images?select=*&limit=1
+Result: NETWORK_ERROR
+Details: curl: (56) CONNECT tunnel failed, response 403
+
+HTTP_STATUS:000
+
