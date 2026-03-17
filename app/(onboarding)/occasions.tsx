@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
 import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
@@ -23,7 +24,7 @@ export default function OccasionsScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
     loadBundleFiltersFromProfile().then(setFilters);
