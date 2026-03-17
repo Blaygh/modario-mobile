@@ -38,8 +38,10 @@ export default function BaseModelSkinToneScreen() {
     [bundleQuery.data?.baseAvatarFlow?.skinToneOptionsByStyleDirection, styleDirection],
   );
 
+  const defaultSkinToneOption = toneOptions.find((option) => option.isDefault) ?? toneOptions[0];
+
   const onContinue = async () => {
-    const choice = selected ?? toneOptions[0]?.skinToneKey;
+    const choice = selected ?? defaultSkinToneOption?.skinToneKey;
     await updateOnboardingProfile({ skinTone: choice ?? 'medium' });
     router.push('/(onboarding)/base-model-body-type');
   };

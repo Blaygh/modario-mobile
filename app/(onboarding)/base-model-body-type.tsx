@@ -42,8 +42,10 @@ export default function BaseModelBodyTypeScreen() {
     [bundleQuery.data?.baseAvatarFlow?.bodyTypeOptionsByStyleDirectionAndSkinTone, skinTone, styleDirection],
   );
 
+  const defaultBodyTypeOption = bodyTypeOptions.find((option) => option.isDefault) ?? bodyTypeOptions[0];
+
   const onContinue = async () => {
-    const choice = selected ?? bodyTypeOptions[0]?.bodyTypeKey;
+    const choice = selected ?? defaultBodyTypeOption?.bodyTypeKey;
     await updateOnboardingProfile({ bodyType: choice ?? 'average' });
     router.push('/(onboarding)/done');
   };

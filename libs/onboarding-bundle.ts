@@ -51,6 +51,8 @@ export type BaseAvatarFlow = {
     Array<{
       skinToneKey: string;
       skinToneDisplayName: string;
+      isDefault: boolean;
+      sortOrder: number;
       previewModel: BaseAvatarModel;
     }>
   >;
@@ -61,6 +63,8 @@ export type BaseAvatarFlow = {
       Array<{
         bodyTypeKey: string;
         bodyTypeDisplayName: string;
+        isDefault: boolean;
+        sortOrder: number;
         previewModel: BaseAvatarModel;
       }>
     >
@@ -83,6 +87,8 @@ const normalizeHex = (value: string | undefined) => {
   if (!value) return '#E5E5E5';
   return value.startsWith('#') ? value : `#${value}`;
 };
+
+const toSortOrder = (value: unknown, fallback: number) => (typeof value === 'number' ? value : fallback);
 
 const normalizeModel = (raw: any): BaseAvatarModel => ({
   id: raw?.id ?? raw?.key ?? '',
@@ -133,13 +139,23 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
   const occasionsRaw = payload.occasions ?? [];
 
   const flowRaw = payload.base_avatar_flow;
+  const defaultSkinToneOption = (flowRaw?.skin_tone_options_by_style_direction?.womenswear ?? flowRaw?.skin_tone_options_by_style_direction?.menswear ?? []).find(
+    (option: any) => option?.skin_tone_preset?.is_default,
+  );
+  const defaultBodyTypeCandidates: any[] = flowRaw?.body_type_options_by_style_direction_and_skin_tone?.womenswear
+    ? Object.values(flowRaw.body_type_options_by_style_direction_and_skin_tone.womenswear).flat() as any[]
+    : flowRaw?.body_type_options_by_style_direction_and_skin_tone?.menswear
+      ? Object.values(flowRaw.body_type_options_by_style_direction_and_skin_tone.menswear).flat() as any[]
+      : [];
+  const defaultBodyTypeOption = defaultBodyTypeCandidates.find((option: any) => option?.body_type_preset?.is_default);
+
   const baseAvatarFlow: BaseAvatarFlow | null = flowRaw
     ? {
         defaults: {
-          skinToneKey: flowRaw?.defaults?.skin_tone_preset?.key ?? 'medium',
-          skinToneDisplayName: flowRaw?.defaults?.skin_tone_preset?.display_name ?? 'Medium',
-          bodyTypeKey: flowRaw?.defaults?.body_type_preset?.key ?? 'average',
-          bodyTypeDisplayName: flowRaw?.defaults?.body_type_preset?.display_name ?? 'Average',
+          skinToneKey: defaultSkinToneOption?.skin_tone_preset?.key ?? flowRaw?.defaults?.skin_tone_preset?.key ?? 'medium',
+          skinToneDisplayName: defaultSkinToneOption?.skin_tone_preset?.display_name ?? flowRaw?.defaults?.skin_tone_preset?.display_name ?? 'Medium',
+          bodyTypeKey: defaultBodyTypeOption?.body_type_preset?.key ?? flowRaw?.defaults?.body_type_preset?.key ?? 'average',
+          bodyTypeDisplayName: defaultBodyTypeOption?.body_type_preset?.display_name ?? flowRaw?.defaults?.body_type_preset?.display_name ?? 'Average',
         },
         styleDirectionCards: (flowRaw?.style_direction_cards ?? []).map((card: any) => ({
           key: card.key,
@@ -149,11 +165,15 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
         skinToneOptionsByStyleDirection: Object.fromEntries(
           Object.entries(flowRaw?.skin_tone_options_by_style_direction ?? {}).map(([styleDirection, options]) => [
             styleDirection,
-            (options as any[]).map((option) => ({
-              skinToneKey: option.skin_tone_preset?.key,
-              skinToneDisplayName: option.skin_tone_preset?.display_name,
-              previewModel: normalizeModel(option.preview_model),
-            })),
+            (options as any[])
+              .map((option, index) => ({
+                skinToneKey: option.skin_tone_preset?.key,
+                skinToneDisplayName: option.skin_tone_preset?.display_name,
+                isDefault: Boolean(option.skin_tone_preset?.is_default),
+                sortOrder: toSortOrder(option.skin_tone_preset?.sort_order, index + 1),
+                previewModel: normalizeModel(option.preview_model),
+              }))
+              .sort((a, b) => a.sortOrder - b.sortOrder),
           ]),
         ),
         bodyTypeOptionsByStyleDirectionAndSkinTone: Object.fromEntries(
@@ -162,11 +182,15 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
             Object.fromEntries(
               Object.entries(byTone as Record<string, any[]>).map(([skinTone, options]) => [
                 skinTone,
-                options.map((option) => ({
-                  bodyTypeKey: option.body_type_preset?.key,
-                  bodyTypeDisplayName: option.body_type_preset?.display_name,
-                  previewModel: normalizeModel(option.preview_model),
-                })),
+                options
+                  .map((option, index) => ({
+                    bodyTypeKey: option.body_type_preset?.key,
+                    bodyTypeDisplayName: option.body_type_preset?.display_name,
+                    isDefault: Boolean(option.body_type_preset?.is_default),
+                    sortOrder: toSortOrder(option.body_type_preset?.sort_order, index + 1),
+                    previewModel: normalizeModel(option.preview_model),
+                  }))
+                  .sort((a, b) => a.sortOrder - b.sortOrder),
               ]),
             ),
           ]),
