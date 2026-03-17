@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
 import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
@@ -26,7 +27,7 @@ export default function BaseModelGenderScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const [selected, setSelected] = useState<'menswear' | 'womenswear' | null>(null);
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
     loadBundleFiltersFromProfile().then(setFilters);
@@ -52,10 +53,10 @@ export default function BaseModelGenderScreen() {
       return;
     }
 
-    await updateOnboardingProfile({ baseModelGender: selected });
+    await updateOnboardingProfile({ baseModelGender: chosen === 'menswear' ? 'male' : 'female', styleDirection: chosen });
     await saveOnboardingState({
       avatar_mode: 'base',
-      style_direction: selected === 'male' ? 'menswear' : 'womenswear',
+      style_direction: chosen,
       status: 'saved',
     });
     router.push('/(onboarding)/base-model-skin-tone');

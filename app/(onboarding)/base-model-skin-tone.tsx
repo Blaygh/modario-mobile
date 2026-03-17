@@ -14,7 +14,7 @@ export default function BaseModelSkinToneScreen() {
   const { session } = useAuth();
   const [styleDirection, setStyleDirection] = useState<'menswear' | 'womenswear'>('womenswear');
   const [selected, setSelected] = useState<string | null>(null);
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
     loadBundleFiltersFromProfile().then(setFilters);
@@ -38,8 +38,10 @@ export default function BaseModelSkinToneScreen() {
     [bundleQuery.data?.baseAvatarFlow?.skinToneOptionsByStyleDirection, styleDirection],
   );
 
+  const defaultSkinToneOption = toneOptions.find((option) => option.isDefault) ?? toneOptions[0];
+
   const onContinue = async () => {
-    const choice = selected ?? toneOptions[0]?.skinToneKey;
+    const choice = selected ?? defaultSkinToneOption?.skinToneKey;
     await updateOnboardingProfile({ skinTone: choice ?? 'medium' });
     router.push('/(onboarding)/base-model-body-type');
   };
