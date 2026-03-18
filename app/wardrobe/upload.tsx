@@ -1,4 +1,5 @@
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
+import { trackWardrobeImportSessionIds } from '@/libs/wardrobe-import-tracker';
 import { createWardrobeImports, uploadWardrobeImportImage } from '@/libs/wardrobe-imports';
 import { useAuth } from '@/provider/auth-provider';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,10 +54,16 @@ export default function UploadImagesScreen() {
 
       const uploadedPaths = await Promise.all(imageUris.map((uri) => uploadWardrobeImportImage(session.user.id, uri)));
       const result = await createWardrobeImports(session.access_token, uploadedPaths);
+      const importSessionIds = result.import_sessions.map((importSession) => importSession.id);
+
+      await trackWardrobeImportSessionIds(session.user.id, importSessionIds);
 
       router.push({
         pathname: '/wardrobe/processing',
-        params: { count: String(result.import_sessions.length) },
+        params: {
+          count: String(result.import_sessions.length),
+          sessionIds: importSessionIds.join(','),
+        },
       });
     } catch (error) {
       Alert.alert('Import failed', error instanceof Error ? error.message : 'Failed to import images. Please try again.');

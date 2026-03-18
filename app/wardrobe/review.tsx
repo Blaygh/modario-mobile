@@ -1,9 +1,10 @@
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
+import { removeTrackedWardrobeImportSessionIds } from '@/libs/wardrobe-import-tracker';
 import { commitWardrobeImportDecisions, getWardrobeImportDetails, ImportDetectedItem } from '@/libs/wardrobe-imports';
 import { useAuth } from '@/provider/auth-provider';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,7 +27,7 @@ export default function ImportReviewScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
     if (!session?.access_token || !sessionId) {
       setError('Missing session details. Return to upload and try again.');
       return;
@@ -49,11 +50,11 @@ export default function ImportReviewScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.access_token, sessionId]);
 
   useEffect(() => {
     loadDetails();
-  }, [session?.access_token, sessionId]);
+  }, [loadDetails]);
 
   const selectedCount = useMemo(() => decisions.filter((decision) => decision.include).length, [decisions]);
 
@@ -79,6 +80,10 @@ export default function ImportReviewScreen() {
           include: decision.include,
         })),
       );
+
+      if (session.user?.id) {
+        await removeTrackedWardrobeImportSessionIds(session.user.id, [sessionId]);
+      }
 
       router.replace('/wardrobe/complete');
     } catch (e) {

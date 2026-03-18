@@ -30,6 +30,10 @@ export type WardrobeItemsResponse = {
   items: WardrobeItem[];
 };
 
+type WardrobeItemResponse = {
+  item?: WardrobeItem;
+};
+
 export type ImportSession = {
   id: string;
   user_id: string;
@@ -159,6 +163,28 @@ export async function getWardrobeImportDetails(accessToken: string, importSessio
   return (await response.json()) as ImportSessionDetailsResponse;
 }
 
+export async function getWardrobeItem(accessToken: string, itemId: string) {
+  const response = await fetch(`${WARDROBE_API_BASE}/items/${itemId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load wardrobe item (${response.status})`);
+  }
+
+  const data = ((await response.json()) as WardrobeItemResponse | WardrobeItem) ?? null;
+
+  if (data && 'item' in data && data.item) {
+    return data.item;
+  }
+
+  return data as WardrobeItem;
+}
+
 export async function commitWardrobeImportDecisions(
   accessToken: string,
   importSessionId: string,
@@ -181,6 +207,24 @@ export async function commitWardrobeImportDecisions(
 export const isReviewRequiredStatus = (status: string | null | undefined) => {
   const value = (status ?? '').toLowerCase();
   return value.includes('review');
+};
+
+export const isImportProcessingStatus = (status: string | null | undefined) => {
+  const value = (status ?? '').toLowerCase();
+
+  return ['queued', 'queue', 'processing', 'pending', 'running', 'in_progress'].some((fragment) => value.includes(fragment));
+};
+
+export const isImportCompleteStatus = (status: string | null | undefined) => {
+  const value = (status ?? '').toLowerCase();
+
+  return ['complete', 'completed', 'done', 'finished', 'committed', 'saved', 'success'].some((fragment) => value.includes(fragment));
+};
+
+export const isImportFailedStatus = (status: string | null | undefined) => {
+  const value = (status ?? '').toLowerCase();
+
+  return ['failed', 'error', 'cancelled', 'canceled'].some((fragment) => value.includes(fragment));
 };
 
 
