@@ -5,6 +5,31 @@ import { supabase } from '@/libs/supabase';
 const WARDROBE_API_BASE = 'https://api.modario.io';
 const WARDROBE_IMPORTS_ENDPOINT = `${WARDROBE_API_BASE}/wardrobe/imports`;
 
+
+export type WardrobeItem = {
+  id: string;
+  user_id: string;
+  role: string;
+  item_type: string | null;
+  attributes: Record<string, unknown>;
+  active: boolean;
+  metadata: Record<string, unknown>;
+  image: {
+    status: string;
+    display_url: string | null;
+    generated_path: string | null;
+    primary_path: string | null;
+    last_error: string | null;
+    generated_at: string | null;
+  };
+  created_at: string;
+  updated_at: string;
+};
+
+export type WardrobeItemsResponse = {
+  items: WardrobeItem[];
+};
+
 export type ImportSession = {
   id: string;
   user_id: string;
@@ -157,3 +182,37 @@ export const isReviewRequiredStatus = (status: string | null | undefined) => {
   const value = (status ?? '').toLowerCase();
   return value.includes('review');
 };
+
+
+export async function listWardrobeItems(
+  accessToken: string,
+  options?: { limit?: number; offset?: number; active?: boolean; role?: string },
+) {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+  const active = options?.active ?? true;
+
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    active: String(active),
+  });
+
+  if (options?.role) {
+    query.set('role', options.role);
+  }
+
+  const response = await fetch(`${WARDROBE_API_BASE}/items?${query.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to list wardrobe items (${response.status})`);
+  }
+
+  return (await response.json()) as WardrobeItemsResponse;
+}
