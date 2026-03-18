@@ -1,7 +1,7 @@
 import { AppHeader, FilterChip } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { Image } from 'expo-image';
-import { listWardrobeItems } from '@/libs/wardrobe-imports';
+import { isReviewRequiredStatus, listWardrobeImports, listWardrobeItems } from '@/libs/wardrobe-imports';
 import { useAuth } from '@/provider/auth-provider';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
@@ -27,12 +27,23 @@ export default function WardrobeOverviewScreen() {
   const [active, setActive] = useState('All');
 
   const selectedRole = ROLE_BY_FILTER[active];
+  const userId = session?.user?.id ?? 'anonymous';
 
   const itemsQuery = useQuery({
-    queryKey: ['wardrobe-items', selectedRole ?? 'all'],
+    queryKey: ['wardrobe-items', userId, selectedRole ?? 'all'],
     enabled: Boolean(session?.access_token),
     queryFn: () => listWardrobeItems(session!.access_token, { limit: 50, offset: 0, active: true, role: selectedRole }),
     staleTime: 60 * 1000,
+  });
+
+  const reviewSessionsQuery = useQuery({
+    queryKey: ['wardrobe-review-sessions', userId],
+    enabled: Boolean(session?.access_token),
+    queryFn: async () => {
+      const result = await listWardrobeImports(session!.access_token, 50, 0);
+      return result.import_sessions.filter((sessionItem) => isReviewRequiredStatus(sessionItem.status));
+    },
+    refetchInterval: 15000,
   });
 
   const allItems = useMemo(
@@ -72,6 +83,18 @@ export default function WardrobeOverviewScreen() {
       </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {reviewSessionsQuery.data?.length ? (
+          <Link href="/wardrobe/reviews" asChild>
+            <Pressable className="mb-4 rounded-3xl px-4 py-4" style={{ backgroundColor: '#FFF5F7', borderColor: '#F3D5DE', borderWidth: 1 }}>
+              <Text className="font-InterSemiBold text-base" style={{ color: palette.burgundy }}>
+                {reviewSessionsQuery.data.length} import review{reviewSessionsQuery.data.length === 1 ? '' : 's'} ready
+              </Text>
+              <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>
+                Open pending reviews to confirm and commit detected wardrobe items.
+              </Text>
+            </Pressable>
+          </Link>
+        ) : null}
         {itemsQuery.isLoading ? <Text className="mb-3 font-InterRegular text-sm" style={{ color: palette.muted }}>Loading wardrobe…</Text> : null}
         {itemsQuery.error ? <Text className="mb-3 font-InterRegular text-sm" style={{ color: '#B42318' }}>Failed to load wardrobe items.</Text> : null}
         <View className="flex-row flex-wrap justify-between gap-y-3">
