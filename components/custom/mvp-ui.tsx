@@ -1,7 +1,9 @@
 import { BrandTheme } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
 import { ReactNode } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 const { palette, radius, shadow } = BrandTheme;
 
@@ -12,13 +14,59 @@ type FilterChipProps = {
   tone?: 'default' | 'onDark';
 };
 
-export function AppHeader({ title, right, eyebrow }: { title: string; right?: ReactNode; eyebrow?: string }) {
+type ButtonProps = {
+  label: string;
+  onPress?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  fullWidth?: boolean;
+};
+
+export function AppHeader({
+  title,
+  right,
+  left,
+  eyebrow,
+  centered = true,
+  showBack,
+}: {
+  title: string;
+  right?: ReactNode;
+  left?: ReactNode;
+  eyebrow?: string;
+  centered?: boolean;
+  showBack?: boolean;
+}) {
+  const router = useRouter();
+  const leftNode =
+    left ??
+    (showBack ? (
+      <Pressable onPress={() => router.back()} hitSlop={12} className="h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
+        <ChevronLeft size={18} color={palette.ink} />
+      </Pressable>
+    ) : (
+      <View style={{ width: 40, height: 40 }} />
+    ));
+
   return (
-    <View className="mb-5 mt-1">
-      {eyebrow ? <Text className="mb-1 text-xs uppercase tracking-[1.6px]" style={{ color: palette.burgundySoft }}>{eyebrow}</Text> : null}
-      <View className="flex-row items-center justify-between">
-        <Text className="font-InterBold text-[32px] leading-[36px]" style={{ color: palette.ink }}>{title}</Text>
-        {right ? <View>{right}</View> : <View />}
+    <View className="mb-5 mt-1" style={{ gap: eyebrow ? 6 : 0 }}>
+      {eyebrow ? (
+        <Text className="text-xs uppercase tracking-[1.6px]" style={{ color: palette.burgundySoft, textAlign: centered ? 'center' : 'left' }}>
+          {eyebrow}
+        </Text>
+      ) : null}
+      <View className="justify-center" style={{ minHeight: 48, position: 'relative' }}>
+        {centered ? (
+          <Text className="px-14 font-InterBold text-[28px] leading-[32px]" numberOfLines={1} style={{ color: palette.ink, textAlign: 'center' }}>
+            {title}
+          </Text>
+        ) : (
+          <Text className="font-InterBold text-[32px] leading-[36px]" style={{ color: palette.ink }}>
+            {title}
+          </Text>
+        )}
+        <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>{leftNode}</View>
+        <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'center' }}>{right ?? <View style={{ width: 40, height: 40 }} />}</View>
       </View>
     </View>
   );
@@ -33,22 +81,32 @@ export function SectionHeader({ title, action }: { title: string; action?: strin
   );
 }
 
-export function PrimaryButton({ label, onPress }: { label: string; onPress?: () => void }) {
+export function PrimaryButton({ label, onPress, disabled, loading, fullWidth }: ButtonProps) {
+  const content = (
+    <View
+      className="items-center justify-center px-6"
+      style={{ minHeight: 46, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text className="font-InterSemiBold text-base text-white">{label}</Text>}
+    </View>
+  );
+
   return (
-    <Pressable onPress={onPress} className="overflow-hidden" style={{ borderRadius: radius.pill }}>
+    <Pressable disabled={disabled || loading} onPress={onPress} className="overflow-hidden self-start" style={{ borderRadius: 12, alignSelf: fullWidth ? 'stretch' : 'flex-start' }}>
       <LinearGradient colors={[palette.burgundy, palette.burgundySoft]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View className="items-center py-3.5" style={shadow.soft}>
-          <Text className="font-InterSemiBold text-base text-white">{label}</Text>
-        </View>
+        <View style={shadow.soft}>{content}</View>
       </LinearGradient>
     </Pressable>
   );
 }
 
-export function SecondaryButton({ label, onPress }: { label: string; onPress?: () => void }) {
+export function SecondaryButton({ label, onPress, disabled, loading, fullWidth }: ButtonProps) {
   return (
-    <Pressable onPress={onPress} className="items-center border bg-white py-3" style={{ borderColor: palette.line, borderRadius: radius.pill }}>
-      <Text className="font-InterMedium text-base" style={{ color: palette.ink }}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      className="items-center justify-center self-start border bg-white px-6"
+      style={{ minHeight: 46, borderColor: palette.line, borderRadius: 12, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      {loading ? <ActivityIndicator color={palette.ink} /> : <Text className="font-InterMedium text-base" style={{ color: palette.ink }}>{label}</Text>}
     </Pressable>
   );
 }
@@ -59,8 +117,10 @@ export function FilterChip({ label, selected, onPress, tone = 'default' }: Filte
   return (
     <Pressable
       onPress={onPress}
-      className="px-4 py-2"
+      className="px-4"
       style={{
+        minHeight: 36,
+        justifyContent: 'center',
         borderRadius: radius.pill,
         backgroundColor: selected ? (onDark ? 'rgba(255, 255, 255, 0.22)' : palette.burgundy) : '#FFFFFF',
         borderWidth: selected ? (onDark ? 1 : 0) : 1,
@@ -77,6 +137,25 @@ export function TagPill({ label }: { label: string }) {
   return (
     <View className="self-start px-3 py-1" style={{ backgroundColor: palette.roseFog, borderRadius: radius.pill }}>
       <Text className="font-InterMedium text-xs" style={{ color: palette.burgundy }}>{label}</Text>
+    </View>
+  );
+}
+
+export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
+  return (
+    <View className="items-center rounded-[24px] border bg-white px-5 py-8" style={{ borderColor: palette.line }}>
+      <Text className="text-center font-InterSemiBold text-xl" style={{ color: palette.ink }}>{title}</Text>
+      <Text className="mt-2 text-center font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>{description}</Text>
+      {action ? <View className="mt-4">{action}</View> : null}
+    </View>
+  );
+}
+
+export function InfoNotice({ title, description }: { title: string; description: string }) {
+  return (
+    <View className="rounded-[20px] border bg-white p-4" style={{ borderColor: palette.line }}>
+      <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{title}</Text>
+      <Text className="mt-1 font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>{description}</Text>
     </View>
   );
 }

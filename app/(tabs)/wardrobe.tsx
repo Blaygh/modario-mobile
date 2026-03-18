@@ -1,18 +1,15 @@
-import { AppHeader, FilterChip } from '@/components/custom/mvp-ui';
+import { AppHeader, EmptyState, FilterChip, InfoNotice } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
+import { useWardrobeItems } from '@/hooks/use-modario-data';
 import { Image } from 'expo-image';
-import { listWardrobeItems } from '@/libs/wardrobe-imports';
-import { useAuth } from '@/provider/auth-provider';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Plus, Search } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const FILTERS = ['All', 'Tops', 'Bottoms', 'Shoes', 'Outerwear', 'Accessories'];
-
-const ROLE_BY_FILTER: Record<string, string | undefined> = {
+const FILTERS = ['All', 'Tops', 'Bottoms', 'Shoes', 'Outerwear', 'Accessories'] as const;
+const ROLE_BY_FILTER: Record<(typeof FILTERS)[number], string | undefined> = {
   All: undefined,
   Tops: 'top',
   Bottoms: 'bottom',
@@ -20,49 +17,28 @@ const ROLE_BY_FILTER: Record<string, string | undefined> = {
   Outerwear: 'outerwear',
   Accessories: 'accessory',
 };
-const { palette, radius, shadow } = BrandTheme;
+const { palette, radius } = BrandTheme;
 
 export default function WardrobeOverviewScreen() {
-  const { session } = useAuth();
-  const [active, setActive] = useState('All');
-
+  const router = useRouter();
+  const [active, setActive] = useState<(typeof FILTERS)[number]>('All');
   const selectedRole = ROLE_BY_FILTER[active];
+  const itemsQuery = useWardrobeItems(selectedRole);
 
-  const itemsQuery = useQuery({
-    queryKey: ['wardrobe-items', selectedRole ?? 'all'],
-    enabled: Boolean(session?.access_token),
-    queryFn: () => listWardrobeItems(session!.access_token, { limit: 50, offset: 0, active: true, role: selectedRole }),
-    staleTime: 60 * 1000,
-  });
-
-  const allItems = useMemo(
+  const items = useMemo(
     () =>
-      (itemsQuery.data?.items ?? []).map((item) => ({
+      (itemsQuery.data ?? []).map((item) => ({
         id: item.id,
-        name: (item.attributes?.item_type as string | undefined) ?? item.role ?? 'Item',
-        category:
-          item.role === 'top'
-            ? 'Tops'
-            : item.role === 'bottom'
-              ? 'Bottoms'
-              : item.role === 'footwear'
-                ? 'Shoes'
-                : item.role === 'outerwear'
-                  ? 'Outerwear'
-                  : item.role === 'accessory'
-                    ? 'Accessories'
-                    : 'All',
-        image: item.image?.display_url ?? 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
-        lastWorn: 'Recently',
+        name: (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : item.item_type) ?? item.role ?? 'Item',
+        category: item.role ?? 'item',
+        image: item.image?.display_url ?? fallbackItem,
       })),
-    [itemsQuery.data?.items],
+    [itemsQuery.data],
   );
-
-  const items = allItems;
 
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="My Wardrobe" eyebrow="curated closet" right={<Search size={20} color={palette.ink} />} />
+      <AppHeader title="Wardrobe" eyebrow="curated closet" right={<Search size={20} color={palette.ink} />} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
         <View className="flex-row gap-2 pb-2">
           {FILTERS.map((filter) => (
@@ -71,32 +47,41 @@ export default function WardrobeOverviewScreen() {
         </View>
       </ScrollView>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {itemsQuery.isLoading ? <Text className="mb-3 font-InterRegular text-sm" style={{ color: palette.muted }}>Loading wardrobe…</Text> : null}
-        {itemsQuery.error ? <Text className="mb-3 font-InterRegular text-sm" style={{ color: '#B42318' }}>Failed to load wardrobe items.</Text> : null}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {itemsQuery.isLoading ? <InfoNotice title="Loading wardrobe" description="We’re syncing your wardrobe pieces." /> : null}
+        {itemsQuery.isError ? <EmptyState title="Wardrobe unavailable" description="Please retry to load your wardrobe items." /> : null}
+        {!itemsQuery.isLoading && !itemsQuery.isError && !items.length ? (
+          <EmptyState title="No wardrobe items yet" description="Import your first pieces to build better outfit recommendations." />
+        ) : null}
         <View className="flex-row flex-wrap justify-between gap-y-3">
           {items.map((item) => (
-            <Link key={item.id} href={{ pathname: '/wardrobe/item/[id]', params: { id: item.id } }} asChild>
-              <Pressable className="w-[48%] overflow-hidden border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
-                <Image source={{ uri: item.image }} style={{ width: '100%', height: 130 }} />
-                <View className="p-2.5">
-                  <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{item.name}</Text>
-                  <Text className="mt-1 font-InterRegular text-xs" style={{ color: palette.muted }}>Last worn: {item.lastWorn}</Text>
-                </View>
-              </Pressable>
-            </Link>
+            <Pressable
+              key={item.id}
+              onPress={() => router.push({ pathname: '/wardrobe/item/[id]', params: { id: item.id } })}
+              className="w-[48%] overflow-hidden border bg-white"
+              style={{ borderColor: palette.line, borderRadius: radius.card }}>
+              <Image source={{ uri: item.image }} style={{ width: '100%', height: 142 }} contentFit="cover" />
+              <View className="p-3">
+                <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{toTitle(item.name)}</Text>
+                <Text className="mt-1 font-InterRegular text-xs" style={{ color: palette.muted }}>{toTitle(item.category)}</Text>
+              </View>
+            </Pressable>
           ))}
         </View>
-        <View className="h-28" />
       </ScrollView>
 
-      <View className="absolute bottom-6 left-4 right-4">
-        <Link href="/wardrobe/add-item" asChild>
-          <Pressable className="items-center rounded-full py-3.5" style={{ backgroundColor: palette.burgundy, ...shadow.soft }}>
-            <Text className="font-InterSemiBold text-base text-white">+ Add Item</Text>
-          </Pressable>
-        </Link>
+      <View className="absolute bottom-6 left-4 right-4 items-end">
+        <Pressable onPress={() => router.push('/wardrobe/add-item')} className="flex-row items-center gap-2 rounded-xl px-5 py-3.5" style={{ backgroundColor: palette.burgundy }}>
+          <Plus size={18} color="#FFFFFF" />
+          <Text className="font-InterSemiBold text-base text-white">Add item</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
 }
+
+function toTitle(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+const fallbackItem = 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=600&q=80';
