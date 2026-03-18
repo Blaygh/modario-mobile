@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
+import { WardrobeImportReviewMonitor } from '@/components/wardrobe-import-review-monitor';
 import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useOnlineManager } from '@/hooks/use-online-manager';
@@ -123,6 +124,7 @@ export default function RootLayout() {
         <GluestackUIProvider mode="light">
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <AppNavigator />
+            <WardrobeImportReviewMonitor />
             <StatusBar style="auto" />
           </ThemeProvider>
         </GluestackUIProvider>
