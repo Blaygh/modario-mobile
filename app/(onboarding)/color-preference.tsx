@@ -1,4 +1,5 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { getOnboardingBundle, loadBundleFiltersFromProfile, OnboardingColorOption } from '@/libs/onboarding-bundle';
 import { saveOnboardingState } from '@/libs/onboarding-state';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
@@ -40,7 +41,7 @@ const toChip = (option: OnboardingColorOption): ColorChip => ({
 export default function ColorPreferenceScreen() {
   const router = useRouter();
   const { session } = useAuth();
-  const [filters, setFilters] = useState<{ gender: string; skinTone: string; bodyType: string } | null>(null);
+  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
   const [neutrals, setNeutrals] = useState<string[]>([]);
   const [accents, setAccents] = useState<string[]>([]);
   const [avoidPresets, setAvoidPresets] = useState<string[]>(['No avoids']);
