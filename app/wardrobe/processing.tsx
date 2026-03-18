@@ -1,63 +1,65 @@
-import { AppHeader } from '@/components/custom/mvp-ui';
-import { isReviewRequiredStatus, listWardrobeImports } from '@/libs/wardrobe-imports';
-import { useAuth } from '@/provider/auth-provider';
-import { useRouter } from 'expo-router';
+import { AppHeader, EmptyState, PrimaryButton } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
+import { useImportSession } from '@/hooks/use-modario-data';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LoaderCircle } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function ImportProcessingScreen() {
-  const { session } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const { palette } = BrandTheme;
 
-  const checkImports = async () => {
-    if (!session?.access_token) {
-      setError('Please sign in again to continue.');
+export default function ImportProcessingScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ sessionId?: string; count?: string }>();
+  const sessionId = typeof params.sessionId === 'string' ? params.sessionId : null;
+  const importQuery = useImportSession(sessionId);
+
+  useEffect(() => {
+    const status = importQuery.data?.status?.toLowerCase();
+
+    if (!status || !sessionId) {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await listWardrobeImports(session.access_token, 20, 0);
-      const reviewSession = data.import_sessions.find((sessionItem) => isReviewRequiredStatus(sessionItem.status));
-
-      if (reviewSession) {
-        router.replace({ pathname: '/wardrobe/review', params: { sessionId: reviewSession.id } });
-        return;
-      }
-
-      router.replace('/wardrobe/complete');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to check imports.');
-    } finally {
-      setLoading(false);
+    if (status === 'review_required') {
+      router.replace({ pathname: '/wardrobe/review', params: { sessionId } });
+      return;
     }
-  };
 
-  useEffect(() => {
-    checkImports();
-  }, [session?.access_token]);
+    if (status === 'completed') {
+      router.replace({ pathname: '/wardrobe/complete', params: { sessionId, count: String(importQuery.data?.detectedItems.length ?? 0) } });
+    }
+  }, [importQuery.data?.detectedItems.length, importQuery.data?.status, router, sessionId]);
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
-      <AppHeader title="Analyzing Items" />
-      <View className="mt-20 items-center">
-        <LoaderCircle size={64} color="#660033" />
-        <Text className="mt-6 font-InterSemiBold text-xl text-[#1A1A1A]">Detecting your wardrobe</Text>
-        <Text className="mt-2 text-center font-InterRegular text-sm text-[#6B6B6B]">We&apos;re identifying type, color and tags so you can review before saving.</Text>
-        {loading ? <Text className="mt-3 font-InterRegular text-sm text-[#6B6B6B]">Checking import status…</Text> : null}
-        {error ? <Text className="mt-3 text-center font-InterRegular text-sm text-[#B42318]">{error}</Text> : null}
-      </View>
-      <View className="mb-8 mt-auto">
-        <Pressable onPress={checkImports} className="items-center rounded-xl bg-[#660033] py-3">
-          <Text className="font-InterSemiBold text-white">Retry status check</Text>
-        </Pressable>
-      </View>
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Analyzing items" showBack />
+      {!sessionId ? (
+        <EmptyState title="Missing import session" description="Start a new wardrobe import to continue processing." action={<PrimaryButton label="Upload items" onPress={() => router.replace('/wardrobe/upload')} />} />
+      ) : null}
+      {sessionId ? (
+        <View className="mt-20 items-center">
+          <LoaderCircle size={64} color={palette.burgundy} />
+          <Text className="mt-6 font-InterSemiBold text-xl" style={{ color: palette.ink }}>Reviewing your wardrobe import</Text>
+          <Text className="mt-2 text-center font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+            {importQuery.data
+              ? `${importQuery.data.detectedItems.length} detected item${importQuery.data.detectedItems.length === 1 ? '' : 's'} so far.`
+              : 'We’re polling this exact import session and will move you forward as soon as results are ready.'}
+          </Text>
+          {importQuery.data?.lastError ? <Text className="mt-3 text-center font-InterRegular text-sm" style={{ color: '#B42318' }}>{importQuery.data.lastError}</Text> : null}
+          {importQuery.isError ? (
+            <Text className="mt-3 text-center font-InterRegular text-sm" style={{ color: '#B42318' }}>
+              {importQuery.error instanceof Error ? importQuery.error.message : 'Failed to check import status.'}
+            </Text>
+          ) : null}
+          {importQuery.data?.status?.toLowerCase() === 'failed' ? (
+            <View className="mt-5">
+              <PrimaryButton label="Try another upload" onPress={() => router.replace('/wardrobe/upload')} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

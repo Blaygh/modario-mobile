@@ -1,4 +1,5 @@
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
 import { createWardrobeImports, uploadWardrobeImportImage } from '@/libs/wardrobe-imports';
 import { useAuth } from '@/provider/auth-provider';
 import * as ImagePicker from 'expo-image-picker';
@@ -6,8 +7,10 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ImagePlus } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { palette, radius } = BrandTheme;
 
 export default function UploadImagesScreen() {
   const router = useRouter();
@@ -29,12 +32,11 @@ export default function UploadImagesScreen() {
       selectionLimit: 10,
     });
 
-    if (result.canceled) return;
+    if (result.canceled) {
+      return;
+    }
 
-    setImageUris((prev) => {
-      const next = [...prev, ...result.assets.map((asset) => asset.uri)];
-      return Array.from(new Set(next));
-    });
+    setImageUris((previous) => Array.from(new Set([...previous, ...result.assets.map((asset) => asset.uri)])));
   };
 
   const uploadAndDetect = async () => {
@@ -50,14 +52,15 @@ export default function UploadImagesScreen() {
 
     try {
       setUploading(true);
-
       const uploadedPaths = await Promise.all(imageUris.map((uri) => uploadWardrobeImportImage(session.user.id, uri)));
       const result = await createWardrobeImports(session.access_token, uploadedPaths);
+      const sessionId = result.import_sessions[0]?.id;
 
-      router.push({
-        pathname: '/wardrobe/processing',
-        params: { count: String(result.import_sessions.length) },
-      });
+      if (!sessionId) {
+        throw new Error('Import session was created without an id.');
+      }
+
+      router.push({ pathname: '/wardrobe/processing', params: { sessionId, count: String(result.import_sessions.length) } });
     } catch (error) {
       Alert.alert('Import failed', error instanceof Error ? error.message : 'Failed to import images. Please try again.');
     } finally {
@@ -66,32 +69,27 @@ export default function UploadImagesScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
-      <AppHeader title="Upload Items" />
-      <View className="mt-2 items-center rounded-2xl border border-dashed border-[#BFA9B2] bg-white p-8">
-        <ImagePlus size={40} color="#660033" />
-        <Text className="mt-3 font-InterSemiBold text-lg text-[#1A1A1A]">Select item photos</Text>
-        <Text className="mt-1 text-center font-InterRegular text-sm text-[#6B6B6B]">Upload multiple photos, then we&apos;ll detect item details.</Text>
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Upload items" showBack />
+      <View className="mt-2 items-center rounded-[24px] border border-dashed bg-white p-8" style={{ borderColor: '#BFA9B2', borderRadius: radius.card }}>
+        <ImagePlus size={40} color={palette.burgundy} />
+        <Text className="mt-3 font-InterSemiBold text-lg" style={{ color: palette.ink }}>Select item photos</Text>
+        <Text className="mt-1 text-center font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+          Upload one or more wardrobe images and we’ll detect the pieces for review.
+        </Text>
       </View>
 
       <ScrollView className="mt-4 max-h-56" horizontal showsHorizontalScrollIndicator={false}>
         <View className="flex-row gap-3">
           {imageUris.map((uri) => (
-            <Image key={uri} source={{ uri }} style={{ width: 90, height: 90, borderRadius: 12 }} contentFit="cover" />
+            <Image key={uri} source={{ uri }} style={{ width: 96, height: 96, borderRadius: 16 }} contentFit="cover" />
           ))}
         </View>
       </ScrollView>
 
       <View className="mt-5 gap-3">
-        <SecondaryButton label="Add more photos" onPress={pickImages} />
-        <Pressable onPress={uploadAndDetect} disabled={uploading}>
-          <PrimaryButton label={uploading ? 'Uploading…' : 'Upload & detect'} />
-          {uploading ? (
-            <View className="absolute inset-0 items-center justify-center">
-              <ActivityIndicator color="#FFFFFF" />
-            </View>
-          ) : null}
-        </Pressable>
+        <SecondaryButton label="Add photos" fullWidth onPress={pickImages} />
+        <PrimaryButton label={uploading ? 'Uploading…' : 'Upload and detect'} fullWidth onPress={uploadAndDetect} loading={uploading} />
       </View>
     </SafeAreaView>
   );

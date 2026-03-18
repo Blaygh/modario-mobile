@@ -1,21 +1,32 @@
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
-import { Link } from 'expo-router';
+import { BrandTheme } from '@/constants/theme';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CheckCircle2 } from 'lucide-react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const { palette } = BrandTheme;
+
 export default function ImportCompleteScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ count?: string }>();
+  const count = Number(params.count ?? 0);
+
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
-      <AppHeader title="Import Complete" />
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Import complete" showBack />
       <View className="mt-16 items-center">
         <CheckCircle2 size={72} color="#2E7D5B" />
-        <Text className="mt-4 font-InterSemiBold text-2xl text-[#1A1A1A]">3 items added</Text>
-        <Text className="mt-2 font-InterRegular text-sm text-[#6B6B6B]">Your wardrobe is updated and ready for better recommendations.</Text>
+        <Text className="mt-4 font-InterSemiBold text-2xl" style={{ color: palette.ink }}>
+          {count || 'Your'} item{count === 1 ? '' : 's'} {count ? 'added' : 'processed'}
+        </Text>
+        <Text className="mt-2 text-center font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+          Your wardrobe has been updated and is ready for more trustworthy recommendations.
+        </Text>
       </View>
       <View className="mt-auto gap-3 pb-4">
-        <Link href="/(tabs)/wardrobe" asChild><Pressable><PrimaryButton label="View Wardrobe" /></Pressable></Link>
-        <Link href="/wardrobe/add-item" asChild><Pressable><SecondaryButton label="Add More" /></Pressable></Link>
+        <PrimaryButton label="View wardrobe" fullWidth onPress={() => router.replace('/(tabs)/wardrobe')} />
+        <SecondaryButton label="Add more" fullWidth onPress={() => router.push('/wardrobe/add-item')} />
       </View>
     </SafeAreaView>
   );

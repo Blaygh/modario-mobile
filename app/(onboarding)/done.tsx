@@ -1,5 +1,6 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { STARTER_OUTFITS } from '@/constants/mock-outfits';
+import { BrandTheme } from '@/constants/theme';
+import { useCurrentAvatar, useOutfitRecommendations } from '@/hooks/use-modario-data';
 import { saveOnboardingState, triggerOnboardingProcessing } from '@/libs/onboarding-state';
 import { setOnboardingComplete } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
@@ -8,9 +9,13 @@ import { useRouter } from 'expo-router';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const { palette, radius } = BrandTheme;
+
 export default function OnboardingDoneScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const currentAvatarQuery = useCurrentAvatar();
+  const recommendationsQuery = useOutfitRecommendations();
 
   const finishOnboarding = async () => {
     await saveOnboardingState({ is_complete: true, status: 'saved', last_error: null });
@@ -26,21 +31,25 @@ export default function OnboardingDoneScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
+    <SafeAreaView className="flex-1 px-6 py-7" style={{ backgroundColor: palette.ivory }}>
       <ProgressBar progress={7} total={7} />
-      <Text className="mt-8 font-InterBold text-[34px] text-[#1A1A1A]">You&apos;re all set.</Text>
-      <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">We&apos;ll refine your style as you use the app.</Text>
+      <Text className="mt-8 font-InterBold text-[34px]" style={{ color: palette.ink }}>You&apos;re all set.</Text>
+      <Text className="mt-2 font-InterRegular text-lg" style={{ color: palette.muted }}>Your styling profile is ready to power real recommendations.</Text>
+
+      {currentAvatarQuery.data?.imageUrl ? (
+        <View className="mt-6 items-center rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+          <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 112, height: 112, borderRadius: 56 }} contentFit="cover" />
+          <Text className="mt-3 font-InterSemiBold text-lg" style={{ color: palette.ink }}>{currentAvatarQuery.data.label ?? 'Selected base avatar'}</Text>
+        </View>
+      ) : null}
 
       <ScrollView horizontal className="mt-8" showsHorizontalScrollIndicator={false}>
         <View className="flex-row gap-3 pb-2">
-          {STARTER_OUTFITS.map((outfit) => (
-            <View key={outfit.id} className="w-[220px] overflow-hidden rounded-2xl border border-[#E4E4E4] bg-white">
-              <Image source={{ uri: outfit.image }} style={{ width: '100%', height: 170 }} contentFit="cover" />
+          {(recommendationsQuery.data ?? []).slice(0, 3).map((outfit) => (
+            <View key={outfit.id} className="w-[220px] overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+              <Image source={{ uri: outfit.previewImageUrl ?? fallbackLook }} style={{ width: '100%', height: 170 }} contentFit="cover" />
               <View className="p-3">
-                <Text className="font-InterMedium text-base text-[#1A1A1A]">{outfit.title}</Text>
-                <View className="mt-2 self-start rounded-full bg-[#F3E7EE] px-3 py-1">
-                  <Text className="font-InterMedium text-xs text-[#660033]">{outfit.occasion}</Text>
-                </View>
+                <Text className="font-InterMedium text-base" style={{ color: palette.ink }} numberOfLines={2}>{outfit.summary}</Text>
               </View>
             </View>
           ))}
@@ -48,13 +57,12 @@ export default function OnboardingDoneScreen() {
       </ScrollView>
 
       <View className="mt-auto gap-3 pb-2 pt-6">
-        <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4" onPress={finishOnboarding}>
-          <Text className="font-InterMedium text-lg text-white">Go to Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center rounded-2xl border border-[#D7D7D7] bg-white py-4">
-          <Text className="font-InterMedium text-base text-[#6B6B6B]">Improve recommendations later</Text>
+        <TouchableOpacity className="items-center rounded-[16px] py-4" style={{ backgroundColor: palette.burgundy }} onPress={finishOnboarding}>
+          <Text className="font-InterMedium text-lg text-white">Go to home</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
+
+const fallbackLook = 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80';
