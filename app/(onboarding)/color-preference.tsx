@@ -1,197 +1,210 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { getOnboardingBundle, loadBundleFiltersFromProfile, OnboardingColorOption } from '@/libs/onboarding-bundle';
-import { saveOnboardingState } from '@/libs/onboarding-state';
+import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
+import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { OnboardingColorOption } from '@/libs/onboarding-bundle';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
-import { useAuth } from '@/provider/auth-provider';
-import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type ColorChip = { name: string; color: string; textColor?: string };
+const { palette } = BrandTheme;
 
-const FALLBACK_NEUTRALS: ColorChip[] = [
-  { name: 'Black', color: '#171717', textColor: '#FFFFFF' },
-  { name: 'Soft White', color: '#F7F3EC' },
-  { name: 'Gray', color: '#E2DEDE' },
-  { name: 'Navy', color: '#2E3B4D', textColor: '#FFFFFF' },
-  { name: 'Beige', color: '#E3D5BE' },
-  { name: 'Brown', color: '#7A5539', textColor: '#FFFFFF' },
+type ColorChip = {
+  id: string;
+  name: string;
+  color: string;
+  family: 'neutral' | 'accent';
+  textColor: string;
+};
+
+const FALLBACK_COLORS: ColorChip[] = [
+  { id: 'black', name: 'Black', color: '#171717', family: 'neutral', textColor: '#FFFFFF' },
+  { id: 'soft-white', name: 'Soft White', color: '#F7F3EC', family: 'neutral', textColor: '#1A1A1A' },
+  { id: 'navy', name: 'Navy', color: '#2E3B4D', family: 'neutral', textColor: '#FFFFFF' },
+  { id: 'burgundy', name: 'Burgundy', color: '#6F2634', family: 'accent', textColor: '#FFFFFF' },
+  { id: 'dusty-rose', name: 'Dusty Rose', color: '#E2B9B3', family: 'accent', textColor: '#1A1A1A' },
+  { id: 'teal', name: 'Teal', color: '#4D7E85', family: 'accent', textColor: '#FFFFFF' },
 ];
 
-const FALLBACK_ACCENTS: ColorChip[] = [
-  { name: 'Brick Red', color: '#A33E38', textColor: '#FFFFFF' },
-  { name: 'Burgundy', color: '#6F2634', textColor: '#FFFFFF' },
-  { name: 'Dusty Rose', color: '#E2B9B3' },
-  { name: 'Mustard', color: '#D49D55' },
-  { name: 'Teal', color: '#4D7E85', textColor: '#FFFFFF' },
-  { name: 'Cobalt Blue', color: '#57527A', textColor: '#FFFFFF' },
-];
-
-const FALLBACK_AVOID_PRESETS = ['No avoids', 'Neons / very bright', 'Warm colors', 'Cool colors'];
+const FALLBACK_AVOIDS = ['No avoids', 'Neons / very bright', 'Warm colors', 'Cool colors'];
 
 const toChip = (option: OnboardingColorOption): ColorChip => ({
+  id: option.id,
   name: option.name,
   color: option.hex,
+  family: option.family === 'neutral' ? 'neutral' : 'accent',
   textColor: option.family === 'accent' ? '#FFFFFF' : '#1A1A1A',
 });
 
 export default function ColorPreferenceScreen() {
   const router = useRouter();
-  const { session } = useAuth();
-  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
-  const [neutrals, setNeutrals] = useState<string[]>([]);
-  const [accents, setAccents] = useState<string[]>([]);
-  const [avoidPresets, setAvoidPresets] = useState<string[]>(['No avoids']);
+  const onboardingStateQuery = useOnboardingState();
+  const saveMutation = useSaveOnboardingStateMutation();
+  const styleDirection = onboardingStateQuery.data?.styleDirection ?? null;
+  const bundleQuery = useOnboardingBundle(styleDirection);
+  const [likedColors, setLikedColors] = useState<string[]>([]);
+  const [avoidedColors, setAvoidedColors] = useState<string[]>([]);
 
   useEffect(() => {
-    loadBundleFiltersFromProfile().then(setFilters);
-  }, []);
+    setLikedColors(onboardingStateQuery.data?.colorLikes ?? []);
+    setAvoidedColors(onboardingStateQuery.data?.colorAvoids ?? []);
+  }, [onboardingStateQuery.data?.colorAvoids, onboardingStateQuery.data?.colorLikes]);
 
-  const bundleQuery = useQuery({
-    queryKey: ['onboarding-bundle', filters],
-    enabled: !!session?.access_token && !!filters,
-    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const neutralChips = useMemo(() => {
-    const fromApi = bundleQuery.data?.colors.filter((color) => color.family === 'neutral').map(toChip) ?? [];
-    return fromApi.length ? fromApi : FALLBACK_NEUTRALS;
-  }, [bundleQuery.data?.colors]);
-
-  const accentChips = useMemo(() => {
-    const fromApi = bundleQuery.data?.colors.filter((color) => color.family === 'accent').map(toChip) ?? [];
-    return fromApi.length ? fromApi : FALLBACK_ACCENTS;
+  const colors = useMemo(() => {
+    const bundleColors = bundleQuery.data?.colors.map(toChip) ?? [];
+    return bundleColors.length ? bundleColors : FALLBACK_COLORS;
   }, [bundleQuery.data?.colors]);
 
   const avoidOptions = useMemo(() => {
-    const fromApi = bundleQuery.data?.avoidPresets.map((preset) => preset.label) ?? [];
-    return fromApi.length ? ['No avoids', ...fromApi] : FALLBACK_AVOID_PRESETS;
+    const fromBundle = bundleQuery.data?.avoidPresets.map((preset) => preset.label) ?? [];
+    return fromBundle.length ? ['No avoids', ...fromBundle] : FALLBACK_AVOIDS;
   }, [bundleQuery.data?.avoidPresets]);
 
-  const toggle = (item: string, selected: string[], setSelected: (next: string[]) => void, max: number) => {
-    if (selected.includes(item)) {
-      setSelected(selected.filter((value) => value !== item));
+  const groupedColors = useMemo(
+    () => ({
+      neutrals: colors.filter((chip) => chip.family === 'neutral'),
+      accents: colors.filter((chip) => chip.family === 'accent'),
+    }),
+    [colors],
+  );
+
+  const toggleLike = (label: string) => {
+    if (likedColors.includes(label)) {
+      setLikedColors((prev) => prev.filter((value) => value !== label));
       return;
     }
 
-    if (selected.length < max) {
-      setSelected([...selected, item]);
+    if (likedColors.length < 3) {
+      setLikedColors((prev) => [...prev, label]);
     }
   };
 
   const toggleAvoid = (label: string) => {
     if (label === 'No avoids') {
-      setAvoidPresets(['No avoids']);
+      setAvoidedColors([]);
       return;
     }
 
-    const next = avoidPresets.filter((value) => value !== 'No avoids');
-
-    if (next.includes(label)) {
-      const filtered = next.filter((value) => value !== label);
-      setAvoidPresets(filtered.length ? filtered : ['No avoids']);
+    if (avoidedColors.includes(label)) {
+      setAvoidedColors((prev) => prev.filter((value) => value !== label));
       return;
     }
 
-    if (next.length < 2) {
-      setAvoidPresets([...next, label]);
+    if (avoidedColors.length < 3) {
+      setAvoidedColors((prev) => [...prev, label]);
     }
   };
 
-  const continueNext = async () => {
-    const likedColors = [...neutrals, ...accents];
-    const avoidedColors = avoidPresets.includes('No avoids') ? [] : avoidPresets;
-    await updateOnboardingProfile({ likedColors, avoidedColors });
-    await saveOnboardingState({ color_likes: likedColors, color_avoids: avoidedColors, status: 'saved' });
+  const persistAndContinue = async (nextLikes: string[], nextAvoids: string[]) => {
+    await updateOnboardingProfile({ likedColors: nextLikes, avoidedColors: nextAvoids });
+    await saveMutation.mutateAsync({ color_likes: nextLikes, color_avoids: nextAvoids, status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
 
-  const skip = async () => {
-    await updateOnboardingProfile({ likedColors: [], avoidedColors: [] });
-    await saveOnboardingState({ color_likes: [], color_avoids: [], status: 'saved' });
-    router.push('/(onboarding)/occasions');
-  };
+  const renderColorChip = (chip: ColorChip) => {
+    const selected = likedColors.includes(chip.name);
 
-  const renderColorChip = (chip: ColorChip, selected: boolean, onPress: () => void) => (
-    <Pressable
-      key={`${chip.name}-${chip.color}`}
-      onPress={onPress}
-      className="min-w-[30.8%] rounded-[14px] px-3 py-[9px]"
-      style={{ backgroundColor: chip.color, borderWidth: 1, borderColor: 'rgba(0,0,0,0.07)' }}>
-      <View className="flex-row items-center justify-between gap-2">
-        <Text className="font-InterMedium text-[14px]" style={{ color: chip.textColor ?? '#1A1A1A' }}>
-          {chip.name}
-        </Text>
-        {selected && (
-          <View className="h-5 w-5 items-center justify-center rounded-full bg-white/30">
-            <Check size={13} color={chip.textColor ?? '#660033'} />
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
+    return (
+      <Pressable
+        key={chip.id}
+        onPress={() => toggleLike(chip.name)}
+        className="rounded-[14px] px-3 py-[10px]"
+        style={{ width: '31%', backgroundColor: chip.color, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' }}>
+        <View className="flex-row items-center justify-between" style={{ gap: 6 }}>
+          <Text className="font-InterMedium text-[13px]" style={{ color: chip.textColor }}>
+            {chip.name}
+          </Text>
+          {selected ? (
+            <View className="h-5 w-5 items-center justify-center rounded-full bg-white/30">
+              <Check size={13} color={chip.textColor} />
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-5 py-5">
-      <ProgressBar progress={4} total={7} />
+    <SafeAreaView className="flex-1" style={{ backgroundColor: palette.ivory }}>
+      <View className="flex-1 px-4 py-4">
+        <AppHeader title="Colors" subtitle="Optional · save up to 3 likes and up to 3 avoids." showBack />
+        <ProgressBar progress={4} total={7} />
 
-      <Text className="mt-5 text-center font-InterBold text-[28px] leading-[34px] text-[#1A1A1A]">Know your style</Text>
-      <Text className="mt-2 text-center font-InterRegular text-[13px] leading-5 text-[#6B6B6B]">
-        Answer a few questions to help us recommend outfits you&apos;ll love.
-      </Text>
-
-      <ScrollView className="mt-5" showsVerticalScrollIndicator={false}>
-        {bundleQuery.isLoading && <Text className="mb-3 font-InterRegular text-sm text-[#6B6B6B]">Loading options…</Text>}
-        <Text className="font-InterSemiBold text-[20px] text-[#1A1A1A]">Pick your go-to neutrals</Text>
-        <Text className="mb-2 mt-1 font-InterRegular text-[13px] text-[#6B6B6B]">Choose up to 2</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {neutralChips.map((chip) => renderColorChip(chip, neutrals.includes(chip.name), () => toggle(chip.name, neutrals, setNeutrals, 2)))}
-        </View>
-
-        <Text className="mt-6 font-InterSemiBold text-[20px] text-[#1A1A1A]">Choose 2 accent colors you like</Text>
-        <Text className="mb-2 mt-1 font-InterRegular text-[13px] text-[#6B6B6B]">Choose up to 2</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {accentChips.map((chip) => renderColorChip(chip, accents.includes(chip.name), () => toggle(chip.name, accents, setAccents, 2)))}
-        </View>
-
-        <Text className="mt-6 font-InterSemiBold text-[20px] text-[#1A1A1A]">
-          Any colors you never wear? <Text className="font-InterRegular text-[#6B6B6B]">(Optional)</Text>
-        </Text>
-        <Text className="mb-2 mt-1 font-InterRegular text-[13px] text-[#6B6B6B]">Quick presets</Text>
-
-        <View className="mb-4 flex-row flex-wrap gap-2">
-          {avoidOptions.map((label) => {
-            const selected = avoidPresets.includes(label);
-            return (
-              <Pressable
-                key={label}
-                onPress={() => toggleAvoid(label)}
-                className="rounded-full border px-3 py-2"
-                style={{ borderColor: selected ? '#660033' : '#D8D8D8', backgroundColor: selected ? '#F3E7EE' : '#FFFFFF' }}>
-                <Text className="font-InterMedium text-[12px] text-[#1A1A1A]">{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      <View className="border-t border-[#E9E9E9] pt-3">
-        <View className="mb-3 flex-row items-center justify-between">
-          <TouchableOpacity className="rounded-full border border-[#CFCFCF] px-6 py-1.5" onPress={skip}>
-            <Text className="font-InterRegular text-[12px] text-[#6B6B6B]">Skip</Text>
-          </TouchableOpacity>
-          <View className="flex-row items-center gap-1">
-            <Text className="font-InterRegular text-[12px] text-[#6B6B6B]">Edit later</Text>
-            <ChevronRight size={14} color="#6B6B6B" />
+        {(bundleQuery.isLoading || onboardingStateQuery.isLoading) && (
+          <View className="mt-6 flex-row items-center" style={{ gap: 10 }}>
+            <ActivityIndicator color={palette.burgundy} />
+            <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+              Loading color options…
+            </Text>
           </View>
+        )}
+
+        <ScrollView className="mt-6 flex-1" showsVerticalScrollIndicator={false}>
+          {bundleQuery.isError ? (
+            <View className="mb-5 rounded-[24px] border bg-white p-4" style={{ borderColor: '#E7C9D2' }}>
+              <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                We couldn’t load all color options from the backend, so a limited fallback list is shown for now.
+              </Text>
+            </View>
+          ) : null}
+
+          <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+            Color likes
+          </Text>
+          <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>
+            Choose up to 3 colors you gravitate toward.
+          </Text>
+
+          <Text className="mt-4 font-InterMedium text-sm uppercase tracking-[1.2px]" style={{ color: palette.muted }}>
+            Neutrals
+          </Text>
+          <View className="mt-2 flex-row flex-wrap justify-between" style={{ rowGap: 10 }}>
+            {groupedColors.neutrals.map(renderColorChip)}
+          </View>
+
+          <Text className="mt-5 font-InterMedium text-sm uppercase tracking-[1.2px]" style={{ color: palette.muted }}>
+            Accents
+          </Text>
+          <View className="mt-2 flex-row flex-wrap justify-between" style={{ rowGap: 10 }}>
+            {groupedColors.accents.map(renderColorChip)}
+          </View>
+
+          <Text className="mt-6 font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+            Avoids
+          </Text>
+          <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>
+            Optional presets, with “No avoids” normalized as an empty avoid list.
+          </Text>
+          <View className="mt-3 flex-row flex-wrap" style={{ gap: 10 }}>
+            {avoidOptions.map((label) => {
+              const selected = label === 'No avoids' ? avoidedColors.length === 0 : avoidedColors.includes(label);
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => toggleAvoid(label)}
+                  className="rounded-full border px-4 py-2.5"
+                  style={{ borderColor: selected ? palette.burgundy : palette.line, backgroundColor: selected ? palette.roseFog : palette.paper }}>
+                  <Text className="font-InterMedium text-sm" style={{ color: palette.ink }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+
+        <View className="pb-2 pt-3" style={{ gap: 12 }}>
+          <View className="flex-row justify-between">
+            <SecondaryButton label="Skip" onPress={() => persistAndContinue([], [])} disabled={saveMutation.isPending} />
+            <Text className="self-center font-InterRegular text-sm" style={{ color: palette.muted }}>
+              {likedColors.length}/3 likes · {avoidedColors.length}/3 avoids
+            </Text>
+          </View>
+          <PrimaryButton label="Continue" fullWidth onPress={() => persistAndContinue(likedColors, avoidedColors)} disabled={saveMutation.isPending} loading={saveMutation.isPending} />
         </View>
-        <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-3" onPress={continueNext}>
-          <Text className="font-InterMedium text-[22px] text-white">Continue</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

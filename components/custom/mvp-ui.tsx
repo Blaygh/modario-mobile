@@ -29,6 +29,8 @@ export function AppHeader({
   eyebrow,
   centered = true,
   showBack,
+  subtitle,
+  sideWidth = 48,
 }: {
   title: string;
   right?: ReactNode;
@@ -36,6 +38,8 @@ export function AppHeader({
   eyebrow?: string;
   centered?: boolean;
   showBack?: boolean;
+  subtitle?: string;
+  sideWidth?: number;
 }) {
   const router = useRouter();
   const leftNode =
@@ -55,18 +59,34 @@ export function AppHeader({
           {eyebrow}
         </Text>
       ) : null}
-      <View className="justify-center" style={{ minHeight: 48, position: 'relative' }}>
+      <View className="justify-center" style={{ minHeight: subtitle ? 72 : 48, position: 'relative' }}>
         {centered ? (
-          <Text className="px-14 font-InterBold text-[28px] leading-[32px]" numberOfLines={1} style={{ color: palette.ink, textAlign: 'center' }}>
-            {title}
-          </Text>
+          <View style={{ paddingHorizontal: sideWidth + 12 }}>
+            <Text className="font-InterBold text-[28px] leading-[32px]" numberOfLines={1} style={{ color: palette.ink, textAlign: 'center' }}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text className="mt-2 font-InterRegular text-sm leading-5" style={{ color: palette.muted, textAlign: 'center' }}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
         ) : (
-          <Text className="font-InterBold text-[32px] leading-[36px]" style={{ color: palette.ink }}>
-            {title}
-          </Text>
+          <View>
+            <Text className="font-InterBold text-[32px] leading-[36px]" style={{ color: palette.ink }}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text className="mt-2 font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
         )}
-        <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>{leftNode}</View>
-        <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'center' }}>{right ?? <View style={{ width: 40, height: 40 }} />}</View>
+        <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: sideWidth, justifyContent: 'center', alignItems: 'flex-start' }}>{leftNode}</View>
+        <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: sideWidth, justifyContent: 'center', alignItems: 'flex-end' }}>
+          {right ?? <View style={{ width: 40, height: 40 }} />}
+        </View>
       </View>
     </View>
   );
@@ -84,8 +104,8 @@ export function SectionHeader({ title, action }: { title: string; action?: strin
 export function PrimaryButton({ label, onPress, disabled, loading, fullWidth }: ButtonProps) {
   const content = (
     <View
-      className="items-center justify-center px-6"
-      style={{ minHeight: 46, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      className="items-center justify-center"
+      style={{ minHeight: 46, paddingHorizontal: fullWidth ? 24 : 20, minWidth: fullWidth ? undefined : 132, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
       {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text className="font-InterSemiBold text-base text-white">{label}</Text>}
     </View>
   );
@@ -104,8 +124,16 @@ export function SecondaryButton({ label, onPress, disabled, loading, fullWidth }
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      className="items-center justify-center self-start border bg-white px-6"
-      style={{ minHeight: 46, borderColor: palette.line, borderRadius: 12, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      className="items-center justify-center self-start border bg-white"
+      style={{
+        minHeight: 46,
+        minWidth: fullWidth ? undefined : 120,
+        paddingHorizontal: fullWidth ? 24 : 20,
+        borderColor: palette.line,
+        borderRadius: 12,
+        alignSelf: fullWidth ? 'stretch' : 'flex-start',
+        opacity: disabled ? 0.6 : 1,
+      }}>
       {loading ? <ActivityIndicator color={palette.ink} /> : <Text className="font-InterMedium text-base" style={{ color: palette.ink }}>{label}</Text>}
     </Pressable>
   );

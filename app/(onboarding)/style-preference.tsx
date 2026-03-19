@@ -1,37 +1,35 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { STYLE_TASTE_CARDS } from '@/constants/mock-outfits';
-import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
-import { saveOnboardingState } from '@/libs/onboarding-state';
+import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
+import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
-import { useAuth } from '@/provider/auth-provider';
-import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { palette, shadow } = BrandTheme;
 
 export default function StylePreferenceScreen() {
   const router = useRouter();
-  const { session } = useAuth();
+  const onboardingStateQuery = useOnboardingState();
+  const saveMutation = useSaveOnboardingStateMutation();
+  const styleDirection = onboardingStateQuery.data?.styleDirection ?? null;
+  const bundleQuery = useOnboardingBundle(styleDirection);
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
-  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
 
   useEffect(() => {
-    loadBundleFiltersFromProfile().then(setFilters);
-  }, []);
+    const picks = onboardingStateQuery.data?.stylePicks;
+    if (Array.isArray(picks)) {
+      setSelectedCards(picks);
+    }
+  }, [onboardingStateQuery.data?.stylePicks]);
 
-  const bundleQuery = useQuery({
-    queryKey: ['onboarding-bundle', filters],
-    enabled: !!session?.access_token && !!filters,
-    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const styleCards =
-    bundleQuery.data?.styleCards.filter((card) => card.imageUrl).map((card) => ({ id: card.id, title: card.title, image: card.imageUrl })) ??
-    STYLE_TASTE_CARDS;
+  const styleCards = useMemo(() => bundleQuery.data?.styleCards.filter((card) => card.imageUrl) ?? [], [bundleQuery.data?.styleCards]);
+  const selectionCount = selectedCards.length;
+  const canContinue = selectionCount >= 2 && selectionCount <= 3;
 
   const toggle = (id: string) => {
     if (selectedCards.includes(id)) {
@@ -45,65 +43,103 @@ export default function StylePreferenceScreen() {
   };
 
   const continueNext = async () => {
-    await updateOnboardingProfile({ styleCardIds: selectedCards });
-    await saveOnboardingState({ style_picks: selectedCards, status: 'saved' });
-    router.push('/(onboarding)/color-preference');
-  };
+    if (!canContinue) {
+      return;
+    }
 
-  const skip = async () => {
-    await updateOnboardingProfile({ styleCardIds: [] });
-    await saveOnboardingState({ style_picks: [], status: 'saved' });
+    await updateOnboardingProfile({ styleCardIds: selectedCards });
+    await saveMutation.mutateAsync({ style_picks: selectedCards, status: 'saved' });
     router.push('/(onboarding)/color-preference');
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={3} total={7} />
+    <SafeAreaView className="flex-1" style={{ backgroundColor: palette.ivory }}>
+      <View className="flex-1 px-4 py-4">
+        <AppHeader title="Style taste" subtitle="Required · pick 2 to 3 looks you’d actually wear." showBack />
+        <ProgressBar progress={3} total={7} />
 
-      <Text className="mt-7 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Your Style Taste</Text>
-      <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Tap 2–3 outfits you&apos;d wear.</Text>
+        {!styleDirection ? (
+          <View className="mt-8 rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line }}>
+            <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+              We need your style direction before we can request the right onboarding bundle.
+            </Text>
+            <View className="mt-4">
+              <SecondaryButton label="Back to style direction" onPress={() => router.replace('/(onboarding)/style-direction')} />
+            </View>
+          </View>
+        ) : (
+          <>
+            {bundleQuery.isLoading || onboardingStateQuery.isLoading ? (
+              <View className="mt-8 flex-row items-center" style={{ gap: 10 }}>
+                <ActivityIndicator color={palette.burgundy} />
+                <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+                  Loading your style cards…
+                </Text>
+              </View>
+            ) : null}
 
-      <ScrollView className="mt-5" showsVerticalScrollIndicator={false}>
-        {bundleQuery.isLoading && <Text className="mb-3 font-InterRegular text-sm text-[#6B6B6B]">Loading options…</Text>}
-        <View className="flex-row flex-wrap gap-3 pb-6">
-          {styleCards.map((card) => {
-            const selected = selectedCards.includes(card.id);
-            return (
-              <Pressable
-                key={card.id}
-                onPress={() => toggle(card.id)}
-                className="w-[48%] overflow-hidden rounded-2xl bg-white"
-                style={{
-                  borderWidth: selected ? 2 : 1,
-                  borderColor: selected ? '#660033' : '#E5E5E5',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}>
-                <Image source={{ uri: card.image }} style={{ width: '100%', height: 145 }} contentFit="cover" />
-                <View className="absolute bottom-3 left-3 right-3 rounded-xl bg-white/95 py-2">
-                  <Text className="text-center font-InterMedium text-base text-[#1A1A1A]">{card.title}</Text>
+            {bundleQuery.isError ? (
+              <View className="mt-8 rounded-[24px] border bg-white p-4" style={{ borderColor: '#E7C9D2' }}>
+                <Text className="font-InterSemiBold text-sm" style={{ color: palette.ink }}>
+                  We couldn’t load the onboarding bundle.
+                </Text>
+                <Text className="mt-2 font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                  Retry so you can choose from backend-provided style cards.
+                </Text>
+                <View className="mt-4">
+                  <SecondaryButton label="Retry" onPress={() => bundleQuery.refetch()} />
                 </View>
-                {selected && (
-                  <View className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-[#660033]">
-                    <Check color="#fff" size={18} />
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+              </View>
+            ) : null}
 
-      <View className="gap-3 pb-2">
-        <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4" onPress={continueNext}>
-          <Text className="font-InterMedium text-lg text-white">Continue</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="items-center rounded-2xl border border-[#D7D7D7] bg-white py-4" onPress={skip}>
-          <Text className="font-InterMedium text-base text-[#6B6B6B]">Skip</Text>
-        </TouchableOpacity>
+            <ScrollView className="mt-6 flex-1" showsVerticalScrollIndicator={false}>
+              <Text className="mb-3 font-InterRegular text-sm" style={{ color: palette.muted }}>
+                {selectionCount}/3 selected
+              </Text>
+              <View className="flex-row flex-wrap justify-between pb-6" style={{ rowGap: 12 }}>
+                {styleCards.map((card) => {
+                  const selected = selectedCards.includes(card.id);
+                  return (
+                    <Pressable
+                      key={card.id}
+                      onPress={() => toggle(card.id)}
+                      disabled={saveMutation.isPending}
+                      style={{
+                        width: '48%',
+                        borderWidth: selected ? 2 : 1,
+                        borderColor: selected ? palette.burgundy : palette.line,
+                        borderRadius: 20,
+                        backgroundColor: palette.paper,
+                        overflow: 'hidden',
+                        ...shadow.soft,
+                      }}>
+                      <Image source={{ uri: card.imageUrl }} style={{ width: '100%', height: 160 }} contentFit="cover" />
+                      <View className="p-3">
+                        <Text className="font-InterMedium text-base" style={{ color: palette.ink }}>
+                          {card.title}
+                        </Text>
+                      </View>
+                      {selected ? (
+                        <View className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: palette.burgundy }}>
+                          <Check color="#fff" size={18} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <View className="pb-2 pt-3" style={{ gap: 12 }}>
+              {!canContinue ? (
+                <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+                  Select at least 2 looks before continuing.
+                </Text>
+              ) : null}
+              <PrimaryButton label="Continue" fullWidth onPress={continueNext} disabled={!canContinue || saveMutation.isPending} loading={saveMutation.isPending} />
+            </View>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );

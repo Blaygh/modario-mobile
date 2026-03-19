@@ -62,10 +62,12 @@ export async function updateOnboardingProfile(patch: Partial<OnboardingProfile>)
 }
 
 export async function isOnboardingComplete(userId: string) {
+  // Deprecated convenience cache only. Backend onboarding state is the source of truth.
   const completed = await AsyncStorage.getItem(onboardingCompletionKey(userId));
   return completed === 'true';
 }
 
 export async function setOnboardingComplete(userId: string, completed: boolean) {
+  // Deprecated convenience cache only. Backend onboarding state is the source of truth.
   await AsyncStorage.setItem(onboardingCompletionKey(userId), completed ? 'true' : 'false');
 }

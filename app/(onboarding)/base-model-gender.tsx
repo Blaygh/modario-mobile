@@ -1,11 +1,12 @@
 import ProgressBar from '@/components/custom/progress-bar';
+import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useBaseAvatars, useCurrentAvatar, useSelectBaseAvatarMutation } from '@/hooks/use-modario-data';
-import { saveOnboardingState } from '@/libs/onboarding-state';
+import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,8 +15,11 @@ const directions = ['menswear', 'womenswear'] as const;
 
 export default function BaseModelSelectionScreen() {
   const router = useRouter();
-  const [styleDirection, setStyleDirection] = useState<(typeof directions)[number]>('womenswear');
+  const onboardingStateQuery = useOnboardingState();
+  const initialDirection = onboardingStateQuery.data?.styleDirection === 'menswear' ? 'menswear' : 'womenswear';
+  const [styleDirection, setStyleDirection] = useState<(typeof directions)[number]>(initialDirection);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const saveMutation = useSaveOnboardingStateMutation();
   const baseModelsQuery = useBaseAvatars(styleDirection);
   const currentAvatarQuery = useCurrentAvatar();
   const selectAvatarMutation = useSelectBaseAvatarMutation();
@@ -24,22 +28,32 @@ export default function BaseModelSelectionScreen() {
   const activeModelId = selectedModelId ?? currentAvatarQuery.data?.id ?? models[0]?.id ?? null;
   const selectedModel = models.find((model) => model.id === activeModelId) ?? models[0] ?? null;
 
+  useEffect(() => {
+    if (onboardingStateQuery.data?.styleDirection === 'menswear' || onboardingStateQuery.data?.styleDirection === 'womenswear') {
+      setStyleDirection(onboardingStateQuery.data.styleDirection);
+    }
+  }, [onboardingStateQuery.data?.styleDirection]);
+
   const onContinue = async () => {
     if (!selectedModel) {
       return;
     }
 
     await updateOnboardingProfile({ baseModelGender: styleDirection === 'menswear' ? 'male' : 'female', styleDirection });
-    await saveOnboardingState({ avatar_mode: 'base', style_direction: styleDirection, status: 'saved' });
+    await saveMutation.mutateAsync({
+      avatar_mode: 'base',
+      style_direction: styleDirection,
+      avatar_base_model_id: selectedModel.id,
+      status: 'saved',
+    });
     await selectAvatarMutation.mutateAsync(selectedModel.id);
     router.push('/(onboarding)/done');
   };
 
   return (
-    <SafeAreaView className="flex-1 px-6 py-7" style={{ backgroundColor: palette.ivory }}>
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Base model" subtitle="Optional · choose the live avatar model you want to use for previews." showBack />
       <ProgressBar progress={6} total={7} />
-      <Text className="mt-8 font-InterBold text-[34px] leading-[40px]" style={{ color: palette.ink }}>Choose your base model</Text>
-      <Text className="mt-2 font-InterRegular text-lg" style={{ color: palette.muted }}>Select a live avatar model to use throughout Modario.</Text>
 
       <View className="mt-6 flex-row gap-2">
         {directions.map((direction) => {
@@ -79,9 +93,17 @@ export default function BaseModelSelectionScreen() {
       </View>
 
       <View className="mt-auto pb-2 pt-4">
-        <Pressable onPress={onContinue} disabled={!selectedModel || selectAvatarMutation.isPending} className="items-center rounded-[16px] py-4" style={{ backgroundColor: palette.burgundy, opacity: !selectedModel ? 0.6 : 1 }}>
-          <Text className="font-InterMedium text-lg text-white">{selectAvatarMutation.isPending ? 'Saving…' : 'Continue'}</Text>
-        </Pressable>
+        <View style={{ gap: 12 }}>
+          <SecondaryButton
+            label="Skip avatar"
+            onPress={async () => {
+              await saveMutation.mutateAsync({ avatar_mode: 'skip', avatar_base_model_id: null, status: 'saved' });
+              router.replace('/(onboarding)/done');
+            }}
+            disabled={saveMutation.isPending || selectAvatarMutation.isPending}
+          />
+          <PrimaryButton label={selectAvatarMutation.isPending ? 'Saving…' : 'Continue'} fullWidth onPress={onContinue} disabled={!selectedModel || selectAvatarMutation.isPending || saveMutation.isPending} loading={selectAvatarMutation.isPending || saveMutation.isPending} />
+        </View>
       </View>
     </SafeAreaView>
   );
