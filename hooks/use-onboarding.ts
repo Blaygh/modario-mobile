@@ -5,45 +5,50 @@ import { useAuth } from '@/provider/auth-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const onboardingQueryKeys = {
-  me: ['me'] as const,
-  onboardingState: ['onboarding-state'] as const,
-  onboardingBundle: (styleDirection: Exclude<StyleDirection, null> | 'unknown') => ['onboarding-bundle', styleDirection] as const,
+  me: (userId: string | null | undefined) => ['me', userId ?? 'anonymous'] as const,
+  onboardingState: (userId: string | null | undefined) => ['onboarding-state', userId ?? 'anonymous'] as const,
+  onboardingBundle: (userId: string | null | undefined, styleDirection: Exclude<StyleDirection, null> | 'unknown') =>
+    ['onboarding-bundle', userId ?? 'anonymous', styleDirection] as const,
 };
 
-function useAccessToken() {
+function useSessionIdentity() {
   const { session } = useAuth();
-  return session?.access_token;
+
+  return {
+    accessToken: session?.access_token,
+    userId: session?.user.id,
+  };
 }
 
 export function useMe() {
-  const accessToken = useAccessToken();
+  const { accessToken, userId } = useSessionIdentity();
 
   return useQuery<MeResponse>({
-    queryKey: onboardingQueryKeys.me,
-    enabled: Boolean(accessToken),
+    queryKey: onboardingQueryKeys.me(userId),
+    enabled: Boolean(accessToken && userId),
     queryFn: () => getMe(accessToken!),
     staleTime: 30 * 1000,
   });
 }
 
 export function useOnboardingState() {
-  const { session } = useAuth();
+  const { userId } = useSessionIdentity();
 
   return useQuery<OnboardingState | null>({
-    queryKey: onboardingQueryKeys.onboardingState,
-    enabled: Boolean(session),
+    queryKey: onboardingQueryKeys.onboardingState(userId),
+    enabled: Boolean(userId),
     queryFn: () => getOnboardingState(),
     staleTime: 30 * 1000,
   });
 }
 
 export function useOnboardingBundle(styleDirection: StyleDirection) {
-  const accessToken = useAccessToken();
+  const { accessToken, userId } = useSessionIdentity();
   const normalizedDirection = styleDirection === 'menswear' || styleDirection === 'womenswear' ? styleDirection : null;
 
   return useQuery<OnboardingBundle>({
-    queryKey: onboardingQueryKeys.onboardingBundle(normalizedDirection ?? 'unknown'),
-    enabled: Boolean(accessToken && normalizedDirection),
+    queryKey: onboardingQueryKeys.onboardingBundle(userId, normalizedDirection ?? 'unknown'),
+    enabled: Boolean(accessToken && userId && normalizedDirection),
     queryFn: () => getOnboardingBundle(accessToken!, { styleDirection: normalizedDirection! }),
     staleTime: 5 * 60 * 1000,
   });
@@ -51,13 +56,14 @@ export function useOnboardingBundle(styleDirection: StyleDirection) {
 
 export function useSaveOnboardingStateMutation() {
   const queryClient = useQueryClient();
+  const { userId } = useSessionIdentity();
 
   return useMutation({
     mutationFn: saveOnboardingState,
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState }),
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me(userId) }),
       ]);
     },
   });
@@ -65,6 +71,7 @@ export function useSaveOnboardingStateMutation() {
 
 export function useSubmitOnboardingMutation() {
   const queryClient = useQueryClient();
+  const { userId } = useSessionIdentity();
 
   return useMutation({
     mutationFn: async () => {
@@ -74,7 +81,7 @@ export function useSubmitOnboardingMutation() {
         last_error: null,
       });
 
-      queryClient.setQueryData<MeResponse | undefined>(onboardingQueryKeys.me, (current) =>
+      queryClient.setQueryData<MeResponse | undefined>(onboardingQueryKeys.me(userId), (current) =>
         current
           ? {
               ...current,
@@ -87,7 +94,7 @@ export function useSubmitOnboardingMutation() {
             }
           : current,
       );
-      queryClient.setQueryData<OnboardingState | null>(onboardingQueryKeys.onboardingState, savedState);
+      queryClient.setQueryData<OnboardingState | null>(onboardingQueryKeys.onboardingState(userId), savedState);
 
       try {
         await triggerOnboardingProcessing();
@@ -96,8 +103,8 @@ export function useSubmitOnboardingMutation() {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState }),
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) }),
+        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me(userId) }),
       ]);
 
       return savedState;
