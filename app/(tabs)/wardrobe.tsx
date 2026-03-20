@@ -3,7 +3,7 @@ import { BrandTheme } from '@/constants/theme';
 import { useWardrobeItems } from '@/hooks/use-modario-data';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Plus, Search } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,37 +21,46 @@ const { palette, radius } = BrandTheme;
 
 export default function WardrobeOverviewScreen() {
   const router = useRouter();
-  const [active, setActive] = useState<(typeof FILTERS)[number]>('All');
-  const selectedRole = ROLE_BY_FILTER[active];
-  const itemsQuery = useWardrobeItems(selectedRole);
+  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]>('All');
+  const [activeSection, setActiveSection] = useState<'active' | 'archived'>('active');
+  const selectedRole = ROLE_BY_FILTER[activeFilter];
+  const itemsQuery = useWardrobeItems({ role: selectedRole, active: activeSection });
 
   const items = useMemo(
     () =>
       (itemsQuery.data ?? []).map((item) => ({
         id: item.id,
-        name: (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : item.item_type) ?? item.role ?? 'Item',
-        category: item.role ?? 'item',
-        image: item.image?.display_url ?? fallbackItem,
+        name: item.itemType,
+        category: item.role,
+        colorLabel: item.colorLabel,
+        image: item.previewImageUrl ?? fallbackItem,
       })),
     [itemsQuery.data],
   );
 
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Wardrobe" eyebrow="curated closet" right={<Search size={20} color={palette.ink} />} />
+      <AppHeader title="Wardrobe" eyebrow="live closet" subtitle="Browse active and archived wardrobe items backed by your account data." />
+      <View className="mb-3 flex-row gap-2">
+        <FilterChip label="Active" selected={activeSection === 'active'} onPress={() => setActiveSection('active')} />
+        <FilterChip label="Archived" selected={activeSection === 'archived'} onPress={() => setActiveSection('archived')} />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
         <View className="flex-row gap-2 pb-2">
           {FILTERS.map((filter) => (
-            <FilterChip key={filter} label={filter} selected={active === filter} onPress={() => setActive(filter)} />
+            <FilterChip key={filter} label={filter} selected={activeFilter === filter} onPress={() => setActiveFilter(filter)} />
           ))}
         </View>
       </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {itemsQuery.isLoading ? <InfoNotice title="Loading wardrobe" description="We’re syncing your wardrobe pieces." /> : null}
+        {itemsQuery.isLoading ? <InfoNotice title="Loading wardrobe" description="We’re syncing your latest wardrobe items." /> : null}
         {itemsQuery.isError ? <EmptyState title="Wardrobe unavailable" description="Please retry to load your wardrobe items." /> : null}
         {!itemsQuery.isLoading && !itemsQuery.isError && !items.length ? (
-          <EmptyState title="No wardrobe items yet" description="Import your first pieces to build better outfit recommendations." />
+          <EmptyState
+            title={activeSection === 'active' ? 'No wardrobe items yet' : 'No archived items'}
+            description={activeSection === 'active' ? 'Add wardrobe photos to start building real outfit recommendations.' : 'Archived items will stay recoverable here.'}
+          />
         ) : null}
         <View className="flex-row flex-wrap justify-between gap-y-3">
           {items.map((item) => (
@@ -63,7 +72,9 @@ export default function WardrobeOverviewScreen() {
               <Image source={{ uri: item.image }} style={{ width: '100%', height: 142 }} contentFit="cover" />
               <View className="p-3">
                 <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{toTitle(item.name)}</Text>
-                <Text className="mt-1 font-InterRegular text-xs" style={{ color: palette.muted }}>{toTitle(item.category)}</Text>
+                <Text className="mt-1 font-InterRegular text-xs" style={{ color: palette.muted }}>
+                  {[toTitle(item.category), item.colorLabel ? toTitle(item.colorLabel) : null].filter(Boolean).join(' • ')}
+                </Text>
               </View>
             </Pressable>
           ))}

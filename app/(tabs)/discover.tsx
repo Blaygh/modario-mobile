@@ -11,7 +11,7 @@ const { palette, radius } = BrandTheme;
 export default function DiscoverScreen() {
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Discover" eyebrow="editorial picks" />
+      <AppHeader title="Discover" eyebrow="editorial picks" subtitle="This feed stays visible in MVP, but it is clearly marked as an editorial preview while personalized backend ranking is finalized." />
       <View className="flex-row gap-2">
         <FilterChip label="All" selected />
         <FilterChip label="Complete your look" />
@@ -19,7 +19,7 @@ export default function DiscoverScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <SectionHeader title="Recommended for you" />
+        <SectionHeader title="Editorial picks" />
         <View className="gap-3 pb-8">
           {RECOMMENDED_PRODUCTS.map((item) => (
             <Link key={item.id} href={{ pathname: '/discover/item/[id]', params: { id: item.id } }} asChild>
@@ -27,7 +27,7 @@ export default function DiscoverScreen() {
                 <Image source={{ uri: item.image }} style={{ width: 110, height: 110 }} />
                 <View className="flex-1 p-3">
                   <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>{item.name}</Text>
-                  <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Selected to complete your saved beige/blazer looks.</Text>
+                  <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Editorial preview while the personalized Discover feed is still being finalized.</Text>
                   <Text className="mt-2 font-InterSemiBold text-base" style={{ color: palette.burgundy }}>{item.price}</Text>
                 </View>
               </View>

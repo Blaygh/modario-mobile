@@ -1,6 +1,6 @@
 const API_BASE = 'https://api.modario.io';
 
-type RequestOptions = {
+export type RequestOptions = {
   accessToken: string;
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
@@ -32,7 +32,7 @@ async function apiRequest<T>(path: string, options: RequestOptions): Promise<T> 
       const data = (await response.json()) as { detail?: string; error?: string; message?: string };
       message = data.detail ?? data.error ?? data.message ?? message;
     } catch {
-      // Keep fallback message when the response body is not JSON.
+      // Ignore non-JSON response bodies.
     }
 
     throw new Error(message);
@@ -45,18 +45,24 @@ async function apiRequest<T>(path: string, options: RequestOptions): Promise<T> 
   return (await response.json()) as T;
 }
 
-export type OutfitRecommendation = {
+const toTitle = (value: string) =>
+  value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const stringOrNull = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+const numberOrNull = (value: unknown) => (typeof value === 'number' ? value : typeof value === 'string' && value ? Number(value) : null);
+const arrayOfStrings = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []);
+
+export type RecommendationCandidate = {
   id: string;
   candidateId: string;
   previewImageUrl: string | null;
   summary: string;
-  tags: string[];
   suggestions: Array<{ text: string; type: string }>;
+  tags: string[];
   wardrobeItemIds: string[];
-  roles: Array<{
-    role: string;
-    itemId: string;
-  }>;
+  roles: Array<{ role: string; itemId: string }>;
   score: number | null;
   createdAt: string | null;
 };
@@ -64,6 +70,7 @@ export type OutfitRecommendation = {
 export type SavedOutfitSummary = {
   id: string;
   name: string;
+  previewImageUrl: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -81,21 +88,36 @@ export type SavedOutfitItem = {
 export type SavedOutfitDetail = {
   id: string;
   name: string;
+  previewImageUrl: string | null;
+  summary: string | null;
+  suggestions: Array<{ text: string; type: string }>;
+  tags: string[];
+  items: SavedOutfitItem[];
   createdAt: string | null;
   updatedAt: string | null;
-  items: SavedOutfitItem[];
-  previewImageUrl: string | null;
-  tags: string[];
 };
 
 export type PlannedOutfit = {
   id: string;
   outfitId: string;
+  outfitName: string;
+  outfitPreviewImageUrl: string | null;
   plannedDate: string;
   slotIndex: number;
   notes: string;
-  outfitName: string;
+  reminderState: 'unsupported' | 'requested' | 'none';
   createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type WardrobeListItem = {
+  id: string;
+  role: string;
+  itemType: string;
+  active: boolean;
+  previewImageUrl: string | null;
+  colorLabel: string | null;
+  attributes: Record<string, unknown>;
 };
 
 export type WardrobeItemDetail = {
@@ -114,19 +136,22 @@ export type WardrobeItemDetail = {
   createdAt: string | null;
 };
 
+export type ImportDetectedItemReview = {
+  detectedItemId: string;
+  roleSuggestion: string | null;
+  label: string | null;
+  confidence: number | null;
+  cropImageUrl: string | null;
+  attributesPreview: Record<string, unknown>;
+};
+
 export type ImportSessionDetail = {
   id: string;
-  status: string;
+  status: 'uploaded' | 'detecting' | 'review_required' | 'committed' | 'failed' | string;
   lastError: string | null;
   sourceImageUrl: string | null;
-  detectedItems: Array<{
-    detectedItemId: string;
-    roleSuggestion: string | null;
-    label: string | null;
-    confidence: number | null;
-    cropImageUrl: string | null;
-    attributesPreview: Record<string, unknown>;
-  }>;
+  detectedItems: ImportDetectedItemReview[];
+  importedCount: number | null;
 };
 
 export type BaseAvatarModel = {
@@ -160,51 +185,164 @@ export type CurrentAvatar = {
   label: string | null;
 };
 
-type OutfitRecommendationResponse = {
+export type Profile = {
+  userId: string | null;
+  displayName: string;
+  country: string | null;
+  locale: string | null;
+  timezone: string | null;
+  gender: string | null;
+  onboardingComplete: boolean;
+  onboardingStatus: string | null;
+  styleDirection: string | null;
+  stylePicks: string[];
+  colorLikes: string[];
+  colorAvoids: string[];
+  occasions: string[];
+  avatarImageUrl: string | null;
+  avatarLabel: string | null;
+};
+
+export type BillingEntitlement = {
+  planKey: string | null;
+  status: string;
+  isEntitled: boolean;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  updatedAt: string | null;
+};
+
+export type BillingPlan = {
+  key: string;
+  name: string;
+  stripePriceId: string;
+  interval: string;
+};
+
+export type BillingCheckoutSession = {
+  url: string;
+};
+
+type RecommendationResponse = {
   recommendations?: Array<{
     id: string;
     wardrobe_item_ids?: string[];
     role_map?: Record<string, [string, string]>;
-    score?: string;
+    score?: string | number;
     llm_summary?: string;
     llm_tags?: string[];
     llm_suggestions?: Array<{ text: string; type: string }>;
     preview_image_url?: string | null;
     created_at?: string;
   }>;
-  recommendationss?: OutfitRecommendationResponse['recommendations'];
+  recommendationss?: RecommendationResponse['recommendations'];
 };
 
-function normalizeRecommendation(record: NonNullable<OutfitRecommendationResponse['recommendations']>[number]): OutfitRecommendation {
+function normalizeRecommendation(record: NonNullable<RecommendationResponse['recommendations']>[number]): RecommendationCandidate {
   const roleMap = record.role_map ?? {};
-  const roles = Object.entries(roleMap)
-    .map(([role, [itemId]]) => ({ role, itemId }))
-    .filter((entry) => Boolean(entry.itemId));
 
   return {
     id: record.id,
     candidateId: record.id,
-    previewImageUrl: record.preview_image_url ?? null,
-    summary: record.llm_summary ?? 'A curated outfit recommendation based on your wardrobe.',
-    tags: (record.llm_tags ?? []).filter(Boolean),
-    suggestions: record.llm_suggestions ?? [],
-    wardrobeItemIds: (record.wardrobe_item_ids ?? []).filter(Boolean),
-    roles,
-    score: record.score ? Number(record.score) : null,
-    createdAt: record.created_at ?? null,
+    previewImageUrl: stringOrNull(record.preview_image_url),
+    summary: stringOrNull(record.llm_summary) ?? 'A curated outfit recommendation based on your wardrobe.',
+    suggestions: Array.isArray(record.llm_suggestions) ? record.llm_suggestions : [],
+    tags: arrayOfStrings(record.llm_tags),
+    wardrobeItemIds: arrayOfStrings(record.wardrobe_item_ids),
+    roles: Object.entries(roleMap)
+      .map(([role, pair]) => ({ role, itemId: pair?.[0] ?? '' }))
+      .filter((entry) => Boolean(entry.itemId)),
+    score: numberOrNull(record.score),
+    createdAt: stringOrNull(record.created_at),
   };
 }
 
+function normalizeSavedOutfitSummary(outfit: Record<string, unknown>): SavedOutfitSummary {
+  return {
+    id: String(outfit.id ?? ''),
+    name: stringOrNull(outfit.name) ?? 'Saved outfit',
+    previewImageUrl: stringOrNull(outfit.preview_image_url),
+    createdAt: stringOrNull(outfit.created_at),
+    updatedAt: stringOrNull(outfit.updated_at),
+  };
+}
+
+function deriveTags(items: SavedOutfitItem[], fallbackTags?: unknown) {
+  const backendTags = arrayOfStrings(fallbackTags);
+  if (backendTags.length) {
+    return backendTags;
+  }
+
+  return Array.from(
+    new Set(
+      items.flatMap((item) => {
+        const fashionStyle = item.attributes.fashion_style;
+        return Array.isArray(fashionStyle) ? fashionStyle.filter((value): value is string => typeof value === 'string') : [];
+      }),
+    ),
+  ).slice(0, 4);
+}
+
+export async function getProfile(accessToken: string) {
+  const data = await apiRequest<{
+    user?: {
+      user_id?: string;
+      display_name?: string | null;
+      country_code?: string | null;
+      locale?: string | null;
+      timezone?: string | null;
+      gender?: string | null;
+    } | null;
+    onboarding?: {
+      is_complete?: boolean;
+      status?: string | null;
+    } | null;
+    preferences?: {
+      color_likes?: string[] | null;
+      color_avoids?: string[] | null;
+      occasions?: string[] | null;
+    } | null;
+    style_profile?: {
+      style_direction?: string | null;
+      style_picks?: string[] | null;
+    } | null;
+    avatar?: {
+      image_url?: string | null;
+      display_url?: string | null;
+      preview_image_url?: string | null;
+      label?: string | null;
+      name?: string | null;
+    } | null;
+  }>('/me', { accessToken });
+
+  return {
+    userId: stringOrNull(data.user?.user_id),
+    displayName: stringOrNull(data.user?.display_name) ?? 'Modario member',
+    country: stringOrNull(data.user?.country_code),
+    locale: stringOrNull(data.user?.locale),
+    timezone: stringOrNull(data.user?.timezone),
+    gender: stringOrNull(data.user?.gender),
+    onboardingComplete: data.onboarding?.is_complete === true,
+    onboardingStatus: stringOrNull(data.onboarding?.status),
+    styleDirection: stringOrNull(data.style_profile?.style_direction),
+    stylePicks: arrayOfStrings(data.style_profile?.style_picks),
+    colorLikes: arrayOfStrings(data.preferences?.color_likes),
+    colorAvoids: arrayOfStrings(data.preferences?.color_avoids),
+    occasions: arrayOfStrings(data.preferences?.occasions),
+    avatarImageUrl:
+      stringOrNull(data.avatar?.image_url) ?? stringOrNull(data.avatar?.display_url) ?? stringOrNull(data.avatar?.preview_image_url),
+    avatarLabel: stringOrNull(data.avatar?.label) ?? stringOrNull(data.avatar?.name),
+  } satisfies Profile;
+}
+
 export async function getOutfitRecommendations(accessToken: string) {
-  const data = await apiRequest<OutfitRecommendationResponse>('/outfits/recommendations', { accessToken });
+  const data = await apiRequest<RecommendationResponse>('/outfits/recommendations', { accessToken });
   const recommendations = data.recommendations ?? data.recommendationss ?? [];
   return recommendations.map(normalizeRecommendation);
 }
 
 export async function saveCandidate(accessToken: string, candidateId: string, name?: string | null) {
-  const data = await apiRequest<{
-    outfit: { id: string; name: string | null; created_at?: string; updated_at?: string };
-  }>('/candidates/save', {
+  const data = await apiRequest<{ outfit: Record<string, unknown> }>('/candidates/save', {
     accessToken,
     method: 'POST',
     body: {
@@ -213,33 +351,17 @@ export async function saveCandidate(accessToken: string, candidateId: string, na
     },
   });
 
-  return {
-    id: data.outfit.id,
-    name: data.outfit.name ?? 'Saved outfit',
-    createdAt: data.outfit.created_at ?? null,
-    updatedAt: data.outfit.updated_at ?? null,
-  } satisfies SavedOutfitSummary;
+  return normalizeSavedOutfitSummary(data.outfit);
 }
 
 export async function listSavedOutfits(accessToken: string) {
-  const data = await apiRequest<{
-    outfits: Array<{ id: string; name: string | null; created_at?: string; updated_at?: string }>;
-  }>('/outfits/', { accessToken });
-
-  return data.outfits.map(
-    (outfit) =>
-      ({
-        id: outfit.id,
-        name: outfit.name ?? 'Saved outfit',
-        createdAt: outfit.created_at ?? null,
-        updatedAt: outfit.updated_at ?? null,
-      }) satisfies SavedOutfitSummary,
-  );
+  const data = await apiRequest<{ outfits: Record<string, unknown>[] }>('/outfits/', { accessToken });
+  return (data.outfits ?? []).map(normalizeSavedOutfitSummary);
 }
 
 export async function getSavedOutfitDetail(accessToken: string, outfitId: string) {
   const data = await apiRequest<{
-    outfit: { id: string; name: string | null; created_at?: string; updated_at?: string };
+    outfit: Record<string, unknown>;
     items: Array<{
       item_id: string;
       role: string;
@@ -250,41 +372,43 @@ export async function getSavedOutfitDetail(accessToken: string, outfitId: string
     }>;
   }>(`/outfits/${outfitId}`, { accessToken });
 
-  const items = data.items.map(
-    (item) =>
-      ({
-        itemId: item.item_id,
-        role: item.role,
-        wardrobeRole: item.wardrobe_role ?? null,
-        itemType: item.item_type ?? (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : null),
-        color:
-          (typeof item.attributes?.color_base === 'string' ? item.attributes.color_base : null) ??
-          (typeof item.attributes?.color_description === 'string' ? item.attributes.color_description : null),
-        previewImageUrl: item.preview_image_url ?? null,
-        attributes: item.attributes ?? {},
-      }) satisfies SavedOutfitItem,
-  );
-
-  const derivedTags = Array.from(
-    new Set(
-      items
-        .flatMap((item) => {
-          const styles = item.attributes?.fashion_style;
-          return Array.isArray(styles) ? styles.filter((value): value is string => typeof value === 'string') : [];
-        })
-        .slice(0, 4),
-    ),
-  );
+  const items: SavedOutfitItem[] = (data.items ?? []).map((item) => ({
+    itemId: item.item_id,
+    role: item.role,
+    wardrobeRole: stringOrNull(item.wardrobe_role),
+    itemType:
+      stringOrNull(item.item_type) ??
+      (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : null),
+    color:
+      (typeof item.attributes?.color === 'string' ? item.attributes.color : null) ??
+      (typeof item.attributes?.color_base === 'string' ? item.attributes.color_base : null) ??
+      (typeof item.attributes?.color_description === 'string' ? item.attributes.color_description : null),
+    previewImageUrl: stringOrNull(item.preview_image_url),
+    attributes: item.attributes ?? {},
+  }));
 
   return {
-    id: data.outfit.id,
-    name: data.outfit.name ?? 'Saved outfit',
-    createdAt: data.outfit.created_at ?? null,
-    updatedAt: data.outfit.updated_at ?? null,
+    id: String(data.outfit.id ?? outfitId),
+    name: stringOrNull(data.outfit.name) ?? 'Saved outfit',
+    previewImageUrl:
+      stringOrNull(data.outfit.preview_image_url) ?? items.find((item) => item.previewImageUrl)?.previewImageUrl ?? null,
+    summary: stringOrNull(data.outfit.llm_summary),
+    suggestions: Array.isArray(data.outfit.llm_suggestions) ? (data.outfit.llm_suggestions as Array<{ text: string; type: string }>) : [],
+    tags: deriveTags(items, data.outfit.llm_tags),
     items,
-    previewImageUrl: items.find((item) => item.previewImageUrl)?.previewImageUrl ?? null,
-    tags: derivedTags,
+    createdAt: stringOrNull(data.outfit.created_at),
+    updatedAt: stringOrNull(data.outfit.updated_at),
   } satisfies SavedOutfitDetail;
+}
+
+export async function renameSavedOutfit(accessToken: string, outfitId: string, name: string) {
+  const data = await apiRequest<{ outfit: Record<string, unknown> }>(`/outfits/${outfitId}`, {
+    accessToken,
+    method: 'PATCH',
+    body: { name },
+  });
+
+  return normalizeSavedOutfitSummary(data.outfit);
 }
 
 export async function deleteSavedOutfit(accessToken: string, outfitId: string) {
@@ -299,24 +423,31 @@ export async function listPlannedOutfits(accessToken: string, from: string, to: 
     planned_outfits: Array<{
       id: string;
       outfit_id: string;
+      outfit_name?: string | null;
+      preview_image_url?: string | null;
       planned_date: string;
       slot_index?: number;
       notes?: string | null;
+      reminder_state?: string | null;
       created_at?: string;
-      outfit_name?: string | null;
+      updated_at?: string;
     }>;
   }>('/planned', { accessToken, query: { from, to } });
 
-  return data.planned_outfits.map(
+  return (data.planned_outfits ?? []).map(
     (entry) =>
       ({
         id: entry.id,
         outfitId: entry.outfit_id,
+        outfitName: stringOrNull(entry.outfit_name) ?? 'Planned outfit',
+        outfitPreviewImageUrl: stringOrNull(entry.preview_image_url),
         plannedDate: entry.planned_date,
-        slotIndex: entry.slot_index ?? 0,
-        notes: entry.notes ?? '',
-        outfitName: entry.outfit_name ?? 'Planned outfit',
-        createdAt: entry.created_at ?? null,
+        slotIndex: typeof entry.slot_index === 'number' ? entry.slot_index : 0,
+        notes: stringOrNull(entry.notes) ?? '',
+        reminderState:
+          entry.reminder_state === 'requested' ? 'requested' : entry.reminder_state === 'none' ? 'none' : 'unsupported',
+        createdAt: stringOrNull(entry.created_at),
+        updatedAt: stringOrNull(entry.updated_at),
       }) satisfies PlannedOutfit,
   );
 }
@@ -325,9 +456,7 @@ export async function createPlannedOutfit(
   accessToken: string,
   payload: { outfitId: string; plannedDate: string; slotIndex?: number; notes?: string },
 ) {
-  const data = await apiRequest<{
-    planned_outfit: { id: string; outfit_id: string; planned_date: string; slot_index?: number; notes?: string | null; created_at?: string };
-  }>('/planned', {
+  const data = await apiRequest<{ planned_outfit: Record<string, unknown> }>('/planned', {
     accessToken,
     method: 'POST',
     body: {
@@ -339,13 +468,16 @@ export async function createPlannedOutfit(
   });
 
   return {
-    id: data.planned_outfit.id,
-    outfitId: data.planned_outfit.outfit_id,
-    plannedDate: data.planned_outfit.planned_date,
-    slotIndex: data.planned_outfit.slot_index ?? 0,
-    notes: data.planned_outfit.notes ?? '',
-    outfitName: 'Planned outfit',
-    createdAt: data.planned_outfit.created_at ?? null,
+    id: String(data.planned_outfit.id ?? ''),
+    outfitId: String(data.planned_outfit.outfit_id ?? payload.outfitId),
+    outfitName: stringOrNull(data.planned_outfit.outfit_name) ?? 'Planned outfit',
+    outfitPreviewImageUrl: stringOrNull(data.planned_outfit.preview_image_url),
+    plannedDate: String(data.planned_outfit.planned_date ?? payload.plannedDate),
+    slotIndex: typeof data.planned_outfit.slot_index === 'number' ? data.planned_outfit.slot_index : payload.slotIndex ?? 0,
+    notes: stringOrNull(data.planned_outfit.notes) ?? payload.notes ?? '',
+    reminderState: 'unsupported',
+    createdAt: stringOrNull(data.planned_outfit.created_at),
+    updatedAt: stringOrNull(data.planned_outfit.updated_at),
   } satisfies PlannedOutfit;
 }
 
@@ -354,9 +486,7 @@ export async function updatePlannedOutfit(
   planId: string,
   payload: { outfitId: string; slotIndex?: number; notes?: string },
 ) {
-  const data = await apiRequest<{
-    planned_outfit: { id: string; outfit_id: string; planned_date: string; slot_index?: number; notes?: string | null; created_at?: string };
-  }>(`/planned/${planId}`, {
+  const data = await apiRequest<{ planned_outfit: Record<string, unknown> }>(`/planned/${planId}`, {
     accessToken,
     method: 'PATCH',
     body: {
@@ -367,13 +497,16 @@ export async function updatePlannedOutfit(
   });
 
   return {
-    id: data.planned_outfit.id,
-    outfitId: data.planned_outfit.outfit_id,
-    plannedDate: data.planned_outfit.planned_date,
-    slotIndex: data.planned_outfit.slot_index ?? 0,
-    notes: data.planned_outfit.notes ?? '',
-    outfitName: 'Planned outfit',
-    createdAt: data.planned_outfit.created_at ?? null,
+    id: String(data.planned_outfit.id ?? planId),
+    outfitId: String(data.planned_outfit.outfit_id ?? payload.outfitId),
+    outfitName: stringOrNull(data.planned_outfit.outfit_name) ?? 'Planned outfit',
+    outfitPreviewImageUrl: stringOrNull(data.planned_outfit.preview_image_url),
+    plannedDate: String(data.planned_outfit.planned_date ?? ''),
+    slotIndex: typeof data.planned_outfit.slot_index === 'number' ? data.planned_outfit.slot_index : payload.slotIndex ?? 0,
+    notes: stringOrNull(data.planned_outfit.notes) ?? payload.notes ?? '',
+    reminderState: 'unsupported',
+    createdAt: stringOrNull(data.planned_outfit.created_at),
+    updatedAt: stringOrNull(data.planned_outfit.updated_at),
   } satisfies PlannedOutfit;
 }
 
@@ -382,6 +515,48 @@ export async function deletePlannedOutfit(accessToken: string, planId: string) {
     accessToken,
     method: 'DELETE',
   });
+}
+
+export async function listWardrobeItems(
+  accessToken: string,
+  options?: { limit?: number; offset?: number; active?: boolean; role?: string },
+) {
+  const data = await apiRequest<{
+    items: Array<{
+      id: string;
+      role?: string | null;
+      item_type?: string | null;
+      active?: boolean;
+      attributes?: Record<string, unknown>;
+      image?: { display_url?: string | null };
+      generated_image_path?: string | null;
+      primary_image_path?: string | null;
+    }>;
+  }>('/items', {
+    accessToken,
+    query: {
+      limit: options?.limit ?? 50,
+      offset: options?.offset ?? 0,
+      active: options?.active ?? true,
+      role: options?.role,
+    },
+  });
+
+  return (data.items ?? []).map(
+    (item) =>
+      ({
+        id: item.id,
+        role: stringOrNull(item.role) ?? 'item',
+        itemType: stringOrNull(item.item_type) ?? (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : 'Item'),
+        active: item.active ?? true,
+        previewImageUrl: stringOrNull(item.image?.display_url) ?? stringOrNull(item.generated_image_path) ?? stringOrNull(item.primary_image_path),
+        colorLabel:
+          (typeof item.attributes?.color === 'string' ? item.attributes.color : null) ??
+          (typeof item.attributes?.color_base === 'string' ? item.attributes.color_base : null) ??
+          (typeof item.attributes?.color_description === 'string' ? item.attributes.color_description : null),
+        attributes: item.attributes ?? {},
+      }) satisfies WardrobeListItem,
+  );
 }
 
 export async function getWardrobeItemDetail(accessToken: string, itemId: string) {
@@ -395,11 +570,7 @@ export async function getWardrobeItemDetail(accessToken: string, itemId: string)
       active?: boolean;
       source_import_session_id?: string | null;
       source_detected_item_id?: string | null;
-      image?: {
-        status?: string | null;
-        display_url?: string | null;
-        last_error?: string | null;
-      };
+      image?: { status?: string | null; display_url?: string | null; last_error?: string | null };
       image_status?: string | null;
       image_last_error?: string | null;
       primary_image_path?: string | null;
@@ -413,27 +584,27 @@ export async function getWardrobeItemDetail(accessToken: string, itemId: string)
 
   return {
     id: item.id,
-    role: item.role ?? 'item',
-    itemType: item.item_type ?? 'Item',
+    role: stringOrNull(item.role) ?? 'item',
+    itemType: stringOrNull(item.item_type) ?? 'Item',
     attributes: item.attributes ?? {},
     metadata: item.metadata ?? {},
     active: item.active ?? true,
-    sourceImportSessionId: item.source_import_session_id ?? null,
-    sourceDetectedItemId: item.source_detected_item_id ?? null,
-    imageUrl: item.image?.display_url ?? item.generated_image_path ?? item.primary_image_path ?? null,
-    imageStatus: item.image?.status ?? item.image_status ?? null,
-    imageError: item.image?.last_error ?? item.image_last_error ?? null,
-    updatedAt: item.updated_at ?? null,
-    createdAt: item.created_at ?? null,
+    sourceImportSessionId: stringOrNull(item.source_import_session_id),
+    sourceDetectedItemId: stringOrNull(item.source_detected_item_id),
+    imageUrl: stringOrNull(item.image?.display_url) ?? stringOrNull(item.generated_image_path) ?? stringOrNull(item.primary_image_path),
+    imageStatus: stringOrNull(item.image?.status) ?? stringOrNull(item.image_status),
+    imageError: stringOrNull(item.image?.last_error) ?? stringOrNull(item.image_last_error),
+    updatedAt: stringOrNull(item.updated_at),
+    createdAt: stringOrNull(item.created_at),
   } satisfies WardrobeItemDetail;
 }
 
 export async function updateWardrobeItem(
   accessToken: string,
   itemId: string,
-  payload: Pick<WardrobeItemDetail, 'role' | 'itemType' | 'attributes' | 'metadata' | 'active'>,
+  payload: Pick<WardrobeItemDetail, 'role' | 'active'> & { itemType?: string; attributes?: Record<string, unknown>; metadata?: Record<string, unknown> },
 ) {
-  const data = await apiRequest<{ item: Record<string, unknown> }>(`/wardrobe/items/${itemId}`, {
+  await apiRequest<{ item: Record<string, unknown> }>(`/wardrobe/items/${itemId}`, {
     accessToken,
     method: 'PATCH',
     body: {
@@ -445,10 +616,10 @@ export async function updateWardrobeItem(
     },
   });
 
-  return getWardrobeItemDetail(accessToken, String(data.item.id ?? itemId));
+  return getWardrobeItemDetail(accessToken, itemId);
 }
 
-export async function archiveWardrobeItem(accessToken: string, itemId: string) {
+export async function deleteWardrobeItem(accessToken: string, itemId: string) {
   return apiRequest<{ status: string }>(`/wardrobe/items/${itemId}`, {
     accessToken,
     method: 'DELETE',
@@ -457,7 +628,7 @@ export async function archiveWardrobeItem(accessToken: string, itemId: string) {
 
 export async function getImportSession(accessToken: string, importSessionId: string) {
   const data = await apiRequest<{
-    import_session: { id: string; status: string; last_error?: string | null };
+    import_session: { id: string; status: string; last_error?: string | null; imported_count?: number | null };
     source_image?: { storage_url?: string | null };
     detected_items?: Array<{
       detected_item_id: string;
@@ -467,30 +638,47 @@ export async function getImportSession(accessToken: string, importSessionId: str
       crop_storage_url?: string | null;
       attributes_preview?: Record<string, unknown>;
     }>;
+    committed_items_count?: number | null;
   }>(`/wardrobe/imports/${importSessionId}`, { accessToken });
 
   return {
     id: data.import_session.id,
     status: data.import_session.status,
-    lastError: data.import_session.last_error ?? null,
-    sourceImageUrl: data.source_image?.storage_url ?? null,
+    lastError: stringOrNull(data.import_session.last_error),
+    sourceImageUrl: stringOrNull(data.source_image?.storage_url),
     detectedItems: (data.detected_items ?? []).map((item) => ({
       detectedItemId: item.detected_item_id,
-      roleSuggestion: item.role_suggestion ?? null,
-      label: item.label ?? null,
-      confidence: item.confidence ?? null,
-      cropImageUrl: item.crop_storage_url ?? null,
+      roleSuggestion: stringOrNull(item.role_suggestion),
+      label: stringOrNull(item.label),
+      confidence: numberOrNull(item.confidence),
+      cropImageUrl: stringOrNull(item.crop_storage_url),
       attributesPreview: item.attributes_preview ?? {},
     })),
+    importedCount:
+      numberOrNull(data.import_session.imported_count) ?? numberOrNull(data.committed_items_count) ?? (data.import_session.status === 'committed' ? (data.detected_items ?? []).length : null),
   } satisfies ImportSessionDetail;
 }
 
+export async function commitWardrobeImportReview(
+  accessToken: string,
+  importSessionId: string,
+  decisions: Array<{ detectedItemId: string; include: boolean; roleOverride: string | null }>,
+) {
+  return apiRequest<{ status?: string; imported_count?: number | null }>(`/wardrobe/imports/${importSessionId}/commit`, {
+    accessToken,
+    method: 'POST',
+    body: {
+      decisions: decisions.map((decision) => ({
+        detected_item_id: decision.detectedItemId,
+        include: decision.include,
+        role_override: decision.roleOverride,
+      })),
+    },
+  });
+}
+
 export async function listBaseAvatarModels(accessToken: string, styleDirection?: string | null) {
-  const data = await apiRequest<{
-    base_avatars?: unknown[];
-    base_models?: unknown[];
-    models?: unknown[];
-  }>('/avatar/base-models', {
+  const data = await apiRequest<{ base_avatars?: unknown[]; base_models?: unknown[]; models?: unknown[] }>('/avatar/base-models', {
     accessToken,
     query: styleDirection ? { style_direction: styleDirection } : undefined,
   });
@@ -505,48 +693,27 @@ export async function listBaseAvatarModels(accessToken: string, styleDirection?:
 
       return {
         id: String(model.id ?? model.base_model_id ?? ''),
-        key: typeof model.key === 'string' ? model.key : null,
+        key: stringOrNull(model.key),
         displayName: String(model.display_name ?? model.name ?? model.label ?? 'Base model'),
         styleDirection: styleDirectionValue === 'menswear' || styleDirectionValue === 'womenswear' ? styleDirectionValue : null,
-        skinTonePresetId:
-          (typeof model.skin_tone_preset_id === 'string' ? model.skin_tone_preset_id : null) ??
-          (typeof skinTonePreset.id === 'string' ? skinTonePreset.id : null),
-        skinTonePresetKey:
-          (typeof model.skin_tone_key === 'string' ? model.skin_tone_key : null) ??
-          (typeof skinTonePreset.key === 'string' ? skinTonePreset.key : null),
+        skinTonePresetId: stringOrNull(model.skin_tone_preset_id) ?? stringOrNull(skinTonePreset.id),
+        skinTonePresetKey: stringOrNull(model.skin_tone_key) ?? stringOrNull(skinTonePreset.key),
         skinTonePresetName:
-          (typeof model.skin_tone_name === 'string' ? model.skin_tone_name : null) ??
-          (typeof skinTonePreset.display_name === 'string' ? skinTonePreset.display_name : null) ??
-          (typeof skinTonePreset.name === 'string' ? skinTonePreset.name : null),
-        skinToneSortOrder:
-          (typeof model.skin_tone_sort_order === 'number' ? model.skin_tone_sort_order : null) ??
-          (typeof skinTonePreset.sort_order === 'number' ? skinTonePreset.sort_order : null),
-        skinToneIsDefault:
-          Boolean(model.skin_tone_is_default) || Boolean(skinTonePreset.is_default),
-        bodyTypePresetId:
-          (typeof model.body_type_preset_id === 'string' ? model.body_type_preset_id : null) ??
-          (typeof bodyTypePreset.id === 'string' ? bodyTypePreset.id : null),
-        bodyTypePresetKey:
-          (typeof model.body_type_key === 'string' ? model.body_type_key : null) ??
-          (typeof bodyTypePreset.key === 'string' ? bodyTypePreset.key : null),
+          stringOrNull(model.skin_tone_name) ?? stringOrNull(skinTonePreset.display_name) ?? stringOrNull(skinTonePreset.name),
+        skinToneSortOrder: numberOrNull(model.skin_tone_sort_order) ?? numberOrNull(skinTonePreset.sort_order),
+        skinToneIsDefault: Boolean(model.skin_tone_is_default) || Boolean(skinTonePreset.is_default),
+        bodyTypePresetId: stringOrNull(model.body_type_preset_id) ?? stringOrNull(bodyTypePreset.id),
+        bodyTypePresetKey: stringOrNull(model.body_type_key) ?? stringOrNull(bodyTypePreset.key),
         bodyTypePresetName:
-          (typeof model.body_type_name === 'string' ? model.body_type_name : null) ??
-          (typeof bodyTypePreset.display_name === 'string' ? bodyTypePreset.display_name : null) ??
-          (typeof bodyTypePreset.name === 'string' ? bodyTypePreset.name : null),
-        bodyTypeSortOrder:
-          (typeof model.body_type_sort_order === 'number' ? model.body_type_sort_order : null) ??
-          (typeof bodyTypePreset.sort_order === 'number' ? bodyTypePreset.sort_order : null),
-        bodyTypeIsDefault:
-          Boolean(model.body_type_is_default) || Boolean(bodyTypePreset.is_default),
-        poseKey: typeof model.pose_key === 'string' ? model.pose_key : null,
-        imagePath: typeof model.image_path === 'string' ? model.image_path : null,
-        imageUrl:
-          (typeof model.image_url === 'string' ? model.image_url : null) ??
-          (typeof model.preview_image_url === 'string' ? model.preview_image_url : null) ??
-          (typeof model.display_url === 'string' ? model.display_url : null),
+          stringOrNull(model.body_type_name) ?? stringOrNull(bodyTypePreset.display_name) ?? stringOrNull(bodyTypePreset.name),
+        bodyTypeSortOrder: numberOrNull(model.body_type_sort_order) ?? numberOrNull(bodyTypePreset.sort_order),
+        bodyTypeIsDefault: Boolean(model.body_type_is_default) || Boolean(bodyTypePreset.is_default),
+        poseKey: stringOrNull(model.pose_key),
+        imagePath: stringOrNull(model.image_path),
+        imageUrl: stringOrNull(model.image_url) ?? stringOrNull(model.preview_image_url) ?? stringOrNull(model.display_url),
         isDefault: Boolean(model.is_default),
-        sortOrder: typeof model.sort_order === 'number' ? model.sort_order : null,
-        description: typeof model.description === 'string' ? model.description : null,
+        sortOrder: numberOrNull(model.sort_order),
+        description: stringOrNull(model.description),
       } satisfies BaseAvatarModel;
     })
     .filter((model) => Boolean(model.id));
@@ -564,40 +731,58 @@ export async function getCurrentAvatar(accessToken: string) {
   const avatar = (data.avatar ?? data.current_avatar ?? data) as Record<string, unknown>;
 
   return {
-    id: typeof avatar.id === 'string' ? avatar.id : null,
-    baseModelId:
-      (typeof avatar.base_model_id === 'string' ? avatar.base_model_id : null) ??
-      (typeof avatar.id === 'string' ? avatar.id : null),
-    imageUrl:
-      (typeof avatar.image_url === 'string' ? avatar.image_url : null) ??
-      (typeof avatar.preview_image_url === 'string' ? avatar.preview_image_url : null) ??
-      (typeof avatar.display_url === 'string' ? avatar.display_url : null),
-    styleDirection: typeof avatar.style_direction === 'string' ? avatar.style_direction : null,
-    label: typeof avatar.name === 'string' ? avatar.name : typeof avatar.label === 'string' ? avatar.label : null,
+    id: stringOrNull(avatar.id),
+    baseModelId: stringOrNull(avatar.base_model_id) ?? stringOrNull(avatar.id),
+    imageUrl: stringOrNull(avatar.image_url) ?? stringOrNull(avatar.preview_image_url) ?? stringOrNull(avatar.display_url),
+    styleDirection: stringOrNull(avatar.style_direction),
+    label: stringOrNull(avatar.name) ?? stringOrNull(avatar.label),
   } satisfies CurrentAvatar;
 }
 
-export async function listWardrobeItems(
-  accessToken: string,
-  options?: { limit?: number; offset?: number; active?: boolean; role?: string },
-) {
-  const query = new URLSearchParams({
-    limit: String(options?.limit ?? 50),
-    offset: String(options?.offset ?? 0),
-    active: String(options?.active ?? true),
+export async function getBillingEntitlement(accessToken: string) {
+  const data = await apiRequest<{
+    entitlement: {
+      plan_key?: string | null;
+      status: string;
+      is_entitled: boolean;
+      current_period_end?: string | null;
+      cancel_at_period_end?: boolean;
+      updated_at?: string | null;
+    };
+  }>('/billing/me', { accessToken });
+
+  return {
+    planKey: stringOrNull(data.entitlement.plan_key),
+    status: data.entitlement.status,
+    isEntitled: data.entitlement.is_entitled,
+    currentPeriodEnd: stringOrNull(data.entitlement.current_period_end),
+    cancelAtPeriodEnd: data.entitlement.cancel_at_period_end === true,
+    updatedAt: stringOrNull(data.entitlement.updated_at),
+  } satisfies BillingEntitlement;
+}
+
+export async function getBillingPlans(accessToken: string) {
+  const data = await apiRequest<{ billing_plans: Array<{ key: string; name: string; stripe_price_id: string; interval: string }> }>('/billing/plans', {
+    accessToken,
   });
 
-  if (options?.role) {
-    query.set('role', options.role);
-  }
-
-  return apiRequest<{
-    items: Array<{
-      id: string;
-      role?: string | null;
-      item_type?: string | null;
-      attributes?: Record<string, unknown>;
-      image?: { display_url?: string | null };
-    }>;
-  }>(`/items?${query.toString()}`, { accessToken });
+  return (data.billing_plans ?? []).map(
+    (plan) =>
+      ({
+        key: plan.key,
+        name: plan.name,
+        stripePriceId: plan.stripe_price_id,
+        interval: plan.interval,
+      }) satisfies BillingPlan,
+  );
 }
+
+export async function createBillingCheckoutSession(accessToken: string, planKey: string) {
+  return apiRequest<BillingCheckoutSession>('/billing/checkout-session', {
+    accessToken,
+    method: 'POST',
+    body: { plan_key: planKey },
+  });
+}
+
+export { apiRequest, toTitle };

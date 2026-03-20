@@ -1,10 +1,11 @@
-import { AppHeader } from '@/components/custom/mvp-ui';
+import { AppHeader, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useCurrentAvatar, useSavedOutfits, useWardrobeItems } from '@/hooks/use-modario-data';
+import { useCurrentAvatar, useProfile, useSavedOutfits, useWardrobeItems } from '@/hooks/use-modario-data';
+import { useAuth } from '@/provider/auth-provider';
 import { Image } from 'expo-image';
 import { Href, Link } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { palette, radius } = BrandTheme;
@@ -21,27 +22,42 @@ function Row({ title, href }: { title: string; href: Href }) {
 }
 
 export default function ProfileScreen() {
+  const { signOut } = useAuth();
+  const profileQuery = useProfile();
   const currentAvatarQuery = useCurrentAvatar();
   const savedOutfitsQuery = useSavedOutfits();
-  const wardrobeQuery = useWardrobeItems();
+  const wardrobeQuery = useWardrobeItems({ active: 'active' });
+
+  const onSignOut = () => {
+    Alert.alert('Sign out?', 'You can sign back in any time.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: async () => signOut?.() },
+    ]);
+  };
 
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Profile" eyebrow="personal style" />
+      <AppHeader title="Profile" eyebrow="account" subtitle="Your profile, onboarding state, billing, and legal links all reflect real account data where available." />
       <View className="items-center border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
-        <Image source={{ uri: currentAvatarQuery.data?.imageUrl ?? fallbackAvatar }} style={{ width: 84, height: 84, borderRadius: 42 }} contentFit="cover" />
-        <Text className="mt-3 font-InterSemiBold text-2xl" style={{ color: palette.ink }}>Your Modario profile</Text>
+        <Image source={{ uri: currentAvatarQuery.data?.imageUrl ?? profileQuery.data?.avatarImageUrl ?? fallbackAvatar }} style={{ width: 84, height: 84, borderRadius: 42 }} contentFit="cover" />
+        <Text className="mt-3 font-InterSemiBold text-2xl" style={{ color: palette.ink }}>{profileQuery.data?.displayName ?? 'Your Modario profile'}</Text>
         <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>
           Saved outfits {savedOutfitsQuery.data?.length ?? 0} • Wardrobe items {wardrobeQuery.data?.length ?? 0}
         </Text>
-        {currentAvatarQuery.data?.label ? <Text className="mt-2 font-InterRegular text-sm" style={{ color: palette.muted }}>{currentAvatarQuery.data.label}</Text> : null}
+        <Text className="mt-2 font-InterRegular text-sm" style={{ color: palette.muted }}>
+          {profileQuery.data?.locale ?? 'Locale unavailable'} • {profileQuery.data?.timezone ?? 'Timezone unavailable'}
+        </Text>
+        {currentAvatarQuery.data?.label || profileQuery.data?.avatarLabel ? <Text className="mt-2 font-InterRegular text-sm" style={{ color: palette.muted }}>{currentAvatarQuery.data?.label ?? profileQuery.data?.avatarLabel}</Text> : null}
       </View>
 
       <View className="mt-4 border bg-white px-4" style={{ borderColor: palette.line, borderRadius: radius.card }}>
         <Row title="Style Profile" href="/profile/style-profile" />
         <Row title="Settings" href="/profile/settings" />
-        <Row title="Notifications" href="/profile/notifications" />
         <Row title="Billing" href="/profile/billing" />
+      </View>
+
+      <View className="mt-4">
+        <PrimaryButton label="Sign out" onPress={onSignOut} />
       </View>
     </SafeAreaView>
   );

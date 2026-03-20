@@ -3,7 +3,6 @@ import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/m
 import { BrandTheme } from '@/constants/theme';
 import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { OnboardingColorOption } from '@/libs/onboarding-bundle';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -19,17 +18,6 @@ type ColorChip = {
   family: 'neutral' | 'accent';
   textColor: string;
 };
-
-const FALLBACK_COLORS: ColorChip[] = [
-  { id: 'black', name: 'Black', color: '#171717', family: 'neutral', textColor: '#FFFFFF' },
-  { id: 'soft-white', name: 'Soft White', color: '#F7F3EC', family: 'neutral', textColor: '#1A1A1A' },
-  { id: 'navy', name: 'Navy', color: '#2E3B4D', family: 'neutral', textColor: '#FFFFFF' },
-  { id: 'burgundy', name: 'Burgundy', color: '#6F2634', family: 'accent', textColor: '#FFFFFF' },
-  { id: 'dusty-rose', name: 'Dusty Rose', color: '#E2B9B3', family: 'accent', textColor: '#1A1A1A' },
-  { id: 'teal', name: 'Teal', color: '#4D7E85', family: 'accent', textColor: '#FFFFFF' },
-];
-
-const FALLBACK_AVOIDS = ['No avoids', 'Neons / very bright', 'Warm colors', 'Cool colors'];
 
 const toChip = (option: OnboardingColorOption): ColorChip => ({
   id: option.id,
@@ -53,14 +41,11 @@ export default function ColorPreferenceScreen() {
     setAvoidedColors(onboardingStateQuery.data?.colorAvoids ?? []);
   }, [onboardingStateQuery.data?.colorAvoids, onboardingStateQuery.data?.colorLikes]);
 
-  const colors = useMemo(() => {
-    const bundleColors = bundleQuery.data?.colors.map(toChip) ?? [];
-    return bundleColors.length ? bundleColors : FALLBACK_COLORS;
-  }, [bundleQuery.data?.colors]);
+  const colors = useMemo(() => bundleQuery.data?.colors.map(toChip) ?? [], [bundleQuery.data?.colors]);
 
   const avoidOptions = useMemo(() => {
     const fromBundle = bundleQuery.data?.avoidPresets.map((preset) => preset.label) ?? [];
-    return fromBundle.length ? ['No avoids', ...fromBundle] : FALLBACK_AVOIDS;
+    return ['No avoids', ...fromBundle];
   }, [bundleQuery.data?.avoidPresets]);
 
   const groupedColors = useMemo(
@@ -99,7 +84,6 @@ export default function ColorPreferenceScreen() {
   };
 
   const persistAndContinue = async (nextLikes: string[], nextAvoids: string[]) => {
-    await updateOnboardingProfile({ likedColors: nextLikes, avoidedColors: nextAvoids });
     await saveMutation.mutateAsync({ color_likes: nextLikes, color_avoids: nextAvoids, status: 'saved' });
     router.push('/(onboarding)/occasions');
   };
@@ -146,7 +130,7 @@ export default function ColorPreferenceScreen() {
           {bundleQuery.isError ? (
             <View className="mb-5 rounded-[24px] border bg-white p-4" style={{ borderColor: '#E7C9D2' }}>
               <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
-                We couldn’t load all color options from the backend, so a limited fallback list is shown for now.
+                We couldn’t load backend color options yet. Retry or skip this optional step.
               </Text>
             </View>
           ) : null}
@@ -157,6 +141,14 @@ export default function ColorPreferenceScreen() {
           <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>
             Choose up to 3 colors you gravitate toward.
           </Text>
+
+          {!bundleQuery.isLoading && !bundleQuery.isError && !colors.length ? (
+            <View className="mt-4 rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line }}>
+              <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                No color presets are currently available for this bundle. You can skip this step.
+              </Text>
+            </View>
+          ) : null}
 
           <Text className="mt-4 font-InterMedium text-sm uppercase tracking-[1.2px]" style={{ color: palette.muted }}>
             Neutrals

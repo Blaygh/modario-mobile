@@ -1,16 +1,14 @@
-import { AppHeader, FilterChip } from '@/components/custom/mvp-ui';
-import { Text, View } from 'react-native';
+import { AppHeader, EmptyState } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { palette } = BrandTheme;
 
 export default function NotificationsScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
-      <AppHeader title="Notifications" />
-      <View className="rounded-2xl border border-[#E5E5E5] bg-white p-4 gap-3">
-        <View className="flex-row items-center justify-between"><Text className="text-base text-[#1A1A1A]">Planner reminders</Text><FilterChip label="On" selected /></View>
-        <View className="flex-row items-center justify-between"><Text className="text-base text-[#1A1A1A]">New recommendations</Text><FilterChip label="On" selected /></View>
-        <View className="flex-row items-center justify-between"><Text className="text-base text-[#1A1A1A]">Price drop alerts</Text><FilterChip label="Off" /></View>
-      </View>
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Notifications" showBack subtitle="Notification settings are hidden in this MVP until the backend preferences contract exists." />
+      <EmptyState title="Notifications hidden for now" description="There are no fake toggle rows here. This screen will return when notification preferences are fully wired end to end." />
     </SafeAreaView>
   );
 }

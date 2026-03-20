@@ -1,6 +1,6 @@
 import { AppHeader, EmptyState, PrimaryButton, SecondaryButton, TagPill } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useArchiveWardrobeItemMutation, useWardrobeItemDetail } from '@/hooks/use-modario-data';
+import { useUpdateWardrobeItemMutation, useWardrobeItemDetail } from '@/hooks/use-modario-data';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, ScrollView, Text, View } from 'react-native';
@@ -12,25 +12,32 @@ export default function WardrobeItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const itemQuery = useWardrobeItemDetail(id);
-  const archiveMutation = useArchiveWardrobeItemMutation(id);
+  const updateMutation = useUpdateWardrobeItemMutation(id);
   const item = itemQuery.data;
 
-  const onArchive = () => {
+  const toggleArchive = () => {
     if (!item) {
       return;
     }
 
-    Alert.alert('Archive this item?', 'This will remove it from active wardrobe styling while keeping its history.', [
+    const nextActive = !item.active;
+
+    Alert.alert(nextActive ? 'Restore this item?' : 'Archive this item?', nextActive ? 'This item will return to your active wardrobe.' : 'This item will move to Archived, but remain recoverable in wardrobe.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Archive',
-        style: 'destructive',
+        text: nextActive ? 'Restore' : 'Archive',
         onPress: async () => {
           try {
-            await archiveMutation.mutateAsync();
-            router.replace('/(tabs)/wardrobe');
+            await updateMutation.mutateAsync({
+              role: item.role,
+              active: nextActive,
+              itemType: item.itemType,
+              attributes: item.attributes,
+              metadata: item.metadata,
+            });
+            router.replace({ pathname: '/(tabs)/wardrobe' });
           } catch (error) {
-            Alert.alert('Unable to archive', error instanceof Error ? error.message : 'Please try again.');
+            Alert.alert('Unable to update item', error instanceof Error ? error.message : 'Please try again.');
           }
         },
       },
@@ -42,7 +49,7 @@ export default function WardrobeItemDetailScreen() {
       <AppHeader title="Wardrobe item" showBack />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
         {itemQuery.isLoading ? <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>Loading wardrobe item…</Text> : null}
-        {!itemQuery.isLoading && !item ? <EmptyState title="Wardrobe item not found" description="This wardrobe item may have been removed or archived." /> : null}
+        {!itemQuery.isLoading && !item ? <EmptyState title="Wardrobe item not found" description="This wardrobe item may have been removed." /> : null}
         {item ? (
           <View>
             <View className="overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
@@ -51,10 +58,10 @@ export default function WardrobeItemDetailScreen() {
                 <Text className="font-InterSemiBold text-2xl" style={{ color: palette.ink }}>{toTitle(item.itemType)}</Text>
                 <View className="mt-3 flex-row flex-wrap gap-2">
                   <TagPill label={toTitle(item.role)} />
+                  <TagPill label={item.active ? 'Active' : 'Archived'} />
                   {readableAttribute(item.attributes.color || item.attributes.color_base || item.attributes.color_description) ? (
                     <TagPill label={String(readableAttribute(item.attributes.color || item.attributes.color_base || item.attributes.color_description))} />
                   ) : null}
-                  {readableAttribute(item.attributes.fabric_guess) ? <TagPill label={String(readableAttribute(item.attributes.fabric_guess))} /> : null}
                 </View>
               </View>
             </View>
@@ -64,17 +71,17 @@ export default function WardrobeItemDetailScreen() {
               <Field label="Type" value={toTitle(item.itemType)} />
               <Field label="Color" value={toTitle(String(readableAttribute(item.attributes.color || item.attributes.color_base || item.attributes.color_description) ?? 'Not set'))} />
               <Field label="Style" value={formatMaybeArray(item.attributes.fashion_style) || 'Not set'} />
-              <Field label="Fabric" value={toTitle(String(readableAttribute(item.attributes.fabric_guess) ?? 'Not set'))} />
               <Field label="Occasion" value={formatMaybeArray(item.attributes.possible_occasions) || 'Not set'} />
-              <Field label="Notes" value={typeof item.metadata.notes === 'string' ? item.metadata.notes : 'No notes added'} />
+              <Field label="Status" value={item.active ? 'Active in wardrobe' : 'Archived and recoverable'} />
+              {item.imageError ? <Field label="Image processing" value={item.imageError} /> : null}
             </View>
           </View>
         ) : null}
       </ScrollView>
       {item ? (
         <View className="gap-3 pb-2 pt-4">
-          <PrimaryButton label="Edit item" fullWidth onPress={() => router.push({ pathname: '/wardrobe/item/[id]/edit', params: { id: item.id } })} />
-          <SecondaryButton label="Archive item" fullWidth onPress={onArchive} loading={archiveMutation.isPending} />
+          <PrimaryButton label="Edit item" onPress={() => router.push({ pathname: '/wardrobe/item/[id]/edit', params: { id: item.id } })} />
+          <SecondaryButton label={item.active ? 'Archive item' : 'Restore item'} onPress={toggleArchive} loading={updateMutation.isPending} />
         </View>
       ) : null}
     </SafeAreaView>
