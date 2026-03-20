@@ -45,7 +45,11 @@ export function AppHeader({
   const leftNode =
     left ??
     (showBack ? (
-      <Pressable onPress={() => router.back()} hitSlop={12} className="h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={12}
+        className="h-10 w-10 items-center justify-center rounded-full border"
+        style={{ borderColor: palette.line, backgroundColor: palette.paper }}>
         <ChevronLeft size={18} color={palette.ink} />
       </Pressable>
     ) : (
@@ -53,20 +57,20 @@ export function AppHeader({
     ));
 
   return (
-    <View className="mb-5 mt-1" style={{ gap: eyebrow ? 6 : 0 }}>
+    <View className="mb-4 mt-1" style={{ gap: eyebrow ? 6 : 0 }}>
       {eyebrow ? (
         <Text className="text-xs uppercase tracking-[1.6px]" style={{ color: palette.burgundySoft, textAlign: centered ? 'center' : 'left' }}>
           {eyebrow}
         </Text>
       ) : null}
-      <View className="justify-center" style={{ minHeight: subtitle ? 72 : 48, position: 'relative' }}>
+      <View style={{ minHeight: subtitle ? 84 : 56, justifyContent: 'center', position: 'relative' }}>
         {centered ? (
-          <View style={{ paddingHorizontal: sideWidth + 12 }}>
+          <View style={{ paddingHorizontal: sideWidth + 16, alignItems: 'center' }}>
             <Text className="font-InterBold text-[28px] leading-[32px]" numberOfLines={1} style={{ color: palette.ink, textAlign: 'center' }}>
               {title}
             </Text>
             {subtitle ? (
-              <Text className="mt-2 font-InterRegular text-sm leading-5" style={{ color: palette.muted, textAlign: 'center' }}>
+              <Text className="mt-2 font-InterRegular text-sm leading-5" style={{ color: palette.muted, textAlign: 'center', maxWidth: 320 }}>
                 {subtitle}
               </Text>
             ) : null}
@@ -105,13 +109,13 @@ export function PrimaryButton({ label, onPress, disabled, loading, fullWidth }: 
   const content = (
     <View
       className="items-center justify-center"
-      style={{ minHeight: 46, paddingHorizontal: fullWidth ? 24 : 20, minWidth: fullWidth ? undefined : 132, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      style={{ minHeight: 48, paddingHorizontal: fullWidth ? 24 : 18, minWidth: fullWidth ? undefined : 124, alignSelf: fullWidth ? 'stretch' : 'flex-start', opacity: disabled ? 0.6 : 1 }}>
       {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text className="font-InterSemiBold text-base text-white">{label}</Text>}
     </View>
   );
 
   return (
-    <Pressable disabled={disabled || loading} onPress={onPress} className="overflow-hidden self-start" style={{ borderRadius: 12, alignSelf: fullWidth ? 'stretch' : 'flex-start' }}>
+    <Pressable disabled={disabled || loading} onPress={onPress} className="overflow-hidden self-start" style={{ borderRadius: 14, alignSelf: fullWidth ? 'stretch' : 'flex-start' }}>
       <LinearGradient colors={[palette.burgundy, palette.burgundySoft]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={shadow.soft}>{content}</View>
       </LinearGradient>
@@ -126,11 +130,11 @@ export function SecondaryButton({ label, onPress, disabled, loading, fullWidth }
       disabled={disabled || loading}
       className="items-center justify-center self-start border bg-white"
       style={{
-        minHeight: 46,
-        minWidth: fullWidth ? undefined : 120,
-        paddingHorizontal: fullWidth ? 24 : 20,
+        minHeight: 48,
+        minWidth: fullWidth ? undefined : 112,
+        paddingHorizontal: fullWidth ? 24 : 18,
         borderColor: palette.line,
-        borderRadius: 12,
+        borderRadius: 14,
         alignSelf: fullWidth ? 'stretch' : 'flex-start',
         opacity: disabled ? 0.6 : 1,
       }}>

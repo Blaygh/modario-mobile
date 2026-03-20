@@ -1,5 +1,14 @@
-import { getMe, getOnboardingState, MeResponse, OnboardingState, saveOnboardingState, triggerOnboardingProcessing } from '@/libs/onboarding-service';
+import { uploadAvatarReferenceImage } from '@/libs/avatar-onboarding';
 import { getOnboardingBundle, OnboardingBundle } from '@/libs/onboarding-bundle';
+import {
+  getMe,
+  getOnboardingState,
+  MeResponse,
+  OnboardingState,
+  saveAvatarReferences,
+  saveOnboardingState,
+  triggerOnboardingProcessing,
+} from '@/libs/onboarding-service';
 import { StyleDirection } from '@/types';
 import { useAuth } from '@/provider/auth-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,11 +41,11 @@ export function useMe() {
 }
 
 export function useOnboardingState() {
-  const { userId } = useSessionIdentity();
+  const { accessToken, userId } = useSessionIdentity();
 
   return useQuery<OnboardingState | null>({
     queryKey: onboardingQueryKeys.onboardingState(userId),
-    enabled: Boolean(userId),
+    enabled: Boolean(accessToken && userId),
     queryFn: () => getOnboardingState(),
     staleTime: 30 * 1000,
   });
@@ -60,11 +69,28 @@ export function useSaveOnboardingStateMutation() {
 
   return useMutation({
     mutationFn: saveOnboardingState,
-    onSuccess: async () => {
+    onSuccess: async (savedState) => {
+      queryClient.setQueryData<OnboardingState | null>(onboardingQueryKeys.onboardingState(userId), savedState);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) }),
         queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me(userId) }),
       ]);
+    },
+  });
+}
+
+export function useUploadAvatarPhotoMutation() {
+  const { userId } = useSessionIdentity();
+
+  return useMutation({
+    mutationFn: async (localUri: string) => {
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      const uploadedPath = await uploadAvatarReferenceImage(userId, localUri);
+      await saveAvatarReferences([uploadedPath]);
+      return uploadedPath;
     },
   });
 }
@@ -96,16 +122,12 @@ export function useSubmitOnboardingMutation() {
       );
       queryClient.setQueryData<OnboardingState | null>(onboardingQueryKeys.onboardingState(userId), savedState);
 
-      try {
-        await triggerOnboardingProcessing();
-      } catch (error) {
+      void triggerOnboardingProcessing().catch((error) => {
         console.error('Failed to trigger onboarding processing:', error);
-      }
+      });
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) }),
-        queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me(userId) }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) });
+      void queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.me(userId) });
 
       return savedState;
     },
