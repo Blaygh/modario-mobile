@@ -1,6 +1,7 @@
 import { AppHeader, EmptyState, FilterChip, InfoNotice, PrimaryButton, SectionHeader, TagPill } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { usePlannedOutfits } from '@/hooks/use-modario-data';
+import { formatLocalDateKey } from '@/libs/date';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -12,7 +13,7 @@ export default function PlannerCalendarScreen() {
   const router = useRouter();
   const [monthOffset, setMonthOffset] = useState(0);
   const month = useMemo(() => getMonthData(monthOffset), [monthOffset]);
-  const selectedDateDefault = new Date().toISOString().slice(0, 10);
+  const selectedDateDefault = formatLocalDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(selectedDateDefault);
   const plannedQuery = usePlannedOutfits(month.range.from, month.range.to);
   const plannedMap = useMemo(() => groupPlansByDate(plannedQuery.data ?? []), [plannedQuery.data]);
