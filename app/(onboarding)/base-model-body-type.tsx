@@ -1,82 +1,56 @@
-import ProgressBar from '@/components/custom/progress-bar';
-import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
-import { getOnboardingProfile, updateOnboardingProfile } from '@/libs/onboarding-storage';
-import { useAuth } from '@/provider/auth-provider';
-import { useQuery } from '@tanstack/react-query';
+import { ErrorNotice, LoadingNotice, OnboardingFooter, OnboardingScreen, SelectionCard } from '@/components/custom/onboarding-ui';
+import { BrandTheme } from '@/constants/theme';
+import { useAvatarFlowData, useSaveOnboardingDraftMutation } from '@/hooks/use-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Text } from 'react-native';
+
+const { palette } = BrandTheme;
 
 export default function BaseModelBodyTypeScreen() {
   const router = useRouter();
-  const { session } = useAuth();
-  const [styleDirection, setStyleDirection] = useState<'menswear' | 'womenswear'>('womenswear');
-  const [skinTone, setSkinTone] = useState<string>('medium');
-  const [selected, setSelected] = useState<string | null>(null);
-  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
+  const avatarFlow = useAvatarFlowData();
+  const saveDraftMutation = useSaveOnboardingDraftMutation();
+  const styleDirection = avatarFlow.derivedSelections.styleDirection;
+  const skinTonePresetId = avatarFlow.derivedSelections.skinTonePresetId;
+  const [selectedBodyType, setSelectedBodyType] = useState<string | null>(null);
 
   useEffect(() => {
-    loadBundleFiltersFromProfile().then(setFilters);
-    getOnboardingProfile().then((profile) => {
-      if (profile.styleDirection === 'menswear' || profile.styleDirection === 'womenswear') {
-        setStyleDirection(profile.styleDirection);
-      }
-      if (profile.skinTone) {
-        setSkinTone(profile.skinTone);
-      }
-      setSelected(profile.bodyType);
-    });
-  }, []);
+    setSelectedBodyType(avatarFlow.derivedSelections.bodyTypePresetId);
+  }, [avatarFlow.derivedSelections.bodyTypePresetId]);
 
-  const bundleQuery = useQuery({
-    queryKey: ['onboarding-bundle', filters],
-    enabled: !!session?.access_token && !!filters,
-    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
-    staleTime: 5 * 60 * 1000,
-  });
+  const cards = skinTonePresetId ? avatarFlow.getBodyTypeCards(styleDirection, skinTonePresetId) : [];
 
-  const bodyTypeOptions = useMemo(
-    () => bundleQuery.data?.baseAvatarFlow?.bodyTypeOptionsByStyleDirectionAndSkinTone?.[styleDirection]?.[skinTone] ?? [],
-    [bundleQuery.data?.baseAvatarFlow?.bodyTypeOptionsByStyleDirectionAndSkinTone, skinTone, styleDirection],
-  );
+  const continueNext = async () => {
+    if (!selectedBodyType) {
+      return;
+    }
 
-  const defaultBodyTypeOption = bodyTypeOptions.find((option) => option.isDefault) ?? bodyTypeOptions[0];
-
-  const onContinue = async () => {
-    const choice = selected ?? defaultBodyTypeOption?.bodyTypeKey;
-    await updateOnboardingProfile({ bodyType: choice ?? 'average' });
-    router.push('/(onboarding)/done');
+    await saveDraftMutation.mutateAsync({ avatar_mode: 'base', avatar_skin_tone_preset_id: skinTonePresetId, avatar_body_type_preset_id: selectedBodyType, status: 'saved' });
+    router.push('/(onboarding)/base-model-confirm');
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={6} total={7} />
-      <Text className="mt-8 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Choose your body type</Text>
-      <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">This uses your selected style direction and skin tone.</Text>
-
-      <View className="mt-7 gap-3">
-        {bodyTypeOptions.map((option) => {
-          const active = selected === option.bodyTypeKey;
-          return (
-            <Pressable
-              key={option.bodyTypeKey}
-              onPress={() => setSelected(option.bodyTypeKey)}
-              className="overflow-hidden rounded-2xl bg-white"
-              style={{ borderWidth: 2, borderColor: active ? '#660033' : '#E2E2E2' }}>
-              <Image source={{ uri: option.previewModel.imageUrl }} style={{ width: '100%', height: 150 }} contentFit="cover" />
-              <Text className="py-3 text-center font-InterMedium text-base text-[#1A1A1A]">{option.bodyTypeDisplayName}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View className="mt-auto pb-2 pt-4">
-        <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4" onPress={onContinue}>
-          <Text className="font-InterMedium text-lg text-white">Continue</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    <OnboardingScreen
+      step={5}
+      total={6}
+      title="Choose body type"
+      subtitle="These cards keep your selected style direction and skin tone, then swap body type presets."
+      onBack={() => router.back()}
+      footer={<OnboardingFooter primaryLabel="Continue" onPrimaryPress={continueNext} primaryDisabled={!selectedBodyType} primaryLoading={saveDraftMutation.isPending} />}>
+      {avatarFlow.bundleQuery.isLoading || avatarFlow.baseModelsQuery.isLoading ? <LoadingNotice label="Loading body type options…" /> : null}
+      {avatarFlow.bundleQuery.isError || avatarFlow.baseModelsQuery.isError ? <ErrorNotice label="We couldn’t load body type previews. Please retry." /> : null}
+      {cards.map((card) => (
+        <SelectionCard
+          key={card.label}
+          title={card.label}
+          selected={selectedBodyType === card.bodyTypePresetId}
+          onPress={() => setSelectedBodyType(card.bodyTypePresetId)}
+          media={card.imageUrl ? <Image source={{ uri: card.imageUrl }} style={{ width: '100%', height: 235, borderRadius: 18 }} contentFit="cover" /> : undefined}
+          trailing={<Text className="font-InterMedium text-sm" style={{ color: selectedBodyType === card.bodyTypePresetId ? palette.burgundy : palette.muted }}>{selectedBodyType === card.bodyTypePresetId ? 'Selected' : 'Choose'}</Text>}
+        />
+      ))}
+    </OnboardingScreen>
   );
 }

@@ -1,5 +1,5 @@
-import { StyleDirection } from '@/types';
 import { supabase } from '@/libs/supabase';
+import { StyleDirection } from '@/types';
 
 type OnboardingStatus = 'saved' | 'queued' | 'processing' | 'done' | 'failed';
 
@@ -11,8 +11,15 @@ type OnboardingPatch = {
   occasions?: string[];
   avatar_mode?: 'upload' | 'base' | 'skip';
   avatar_image_urls?: string[];
+  avatar_skin_tone_preset_id?: string | null;
+  avatar_body_type_preset_id?: string | null;
+  avatar_base_model_id?: string | null;
+  avatar_final_image_url?: string | null;
   is_complete?: boolean;
   status?: OnboardingStatus;
+  style_status?: string | null;
+  avatar_status?: string | null;
+  fully_processed?: boolean;
   last_error?: string | null;
   processing_request_id?: string | null;
 };

@@ -1,78 +1,55 @@
-import ProgressBar from '@/components/custom/progress-bar';
-import { getOnboardingBundle, loadBundleFiltersFromProfile } from '@/libs/onboarding-bundle';
-import { getOnboardingProfile, updateOnboardingProfile } from '@/libs/onboarding-storage';
-import { useAuth } from '@/provider/auth-provider';
-import { useQuery } from '@tanstack/react-query';
+import { ErrorNotice, LoadingNotice, OnboardingFooter, OnboardingScreen, SelectionCard } from '@/components/custom/onboarding-ui';
+import { BrandTheme } from '@/constants/theme';
+import { useAvatarFlowData, useSaveOnboardingDraftMutation } from '@/hooks/use-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Text } from 'react-native';
+
+const { palette } = BrandTheme;
 
 export default function BaseModelSkinToneScreen() {
   const router = useRouter();
-  const { session } = useAuth();
-  const [styleDirection, setStyleDirection] = useState<'menswear' | 'womenswear'>('womenswear');
-  const [selected, setSelected] = useState<string | null>(null);
-  const [filters, setFilters] = useState<{ styleDirection: 'menswear' | 'womenswear' } | null>(null);
+  const avatarFlow = useAvatarFlowData();
+  const saveDraftMutation = useSaveOnboardingDraftMutation();
+  const styleDirection = avatarFlow.derivedSelections.styleDirection;
+  const [selectedSkinTone, setSelectedSkinTone] = useState<string | null>(null);
 
   useEffect(() => {
-    loadBundleFiltersFromProfile().then(setFilters);
-    getOnboardingProfile().then((profile) => {
-      if (profile.styleDirection === 'menswear' || profile.styleDirection === 'womenswear') {
-        setStyleDirection(profile.styleDirection);
-      }
-      setSelected(profile.skinTone);
-    });
-  }, []);
+    setSelectedSkinTone(avatarFlow.derivedSelections.skinTonePresetId);
+  }, [avatarFlow.derivedSelections.skinTonePresetId]);
 
-  const bundleQuery = useQuery({
-    queryKey: ['onboarding-bundle', filters],
-    enabled: !!session?.access_token && !!filters,
-    queryFn: () => getOnboardingBundle(session!.access_token, filters!),
-    staleTime: 5 * 60 * 1000,
-  });
+  const cards = avatarFlow.getSkinToneCards(styleDirection);
 
-  const toneOptions = useMemo(
-    () => bundleQuery.data?.baseAvatarFlow?.skinToneOptionsByStyleDirection?.[styleDirection] ?? [],
-    [bundleQuery.data?.baseAvatarFlow?.skinToneOptionsByStyleDirection, styleDirection],
-  );
+  const continueNext = async () => {
+    if (!selectedSkinTone) {
+      return;
+    }
 
-  const defaultSkinToneOption = toneOptions.find((option) => option.isDefault) ?? toneOptions[0];
-
-  const onContinue = async () => {
-    const choice = selected ?? defaultSkinToneOption?.skinToneKey;
-    await updateOnboardingProfile({ skinTone: choice ?? 'medium' });
+    await saveDraftMutation.mutateAsync({ avatar_mode: 'base', avatar_skin_tone_preset_id: selectedSkinTone, status: 'saved' });
     router.push('/(onboarding)/base-model-body-type');
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-6 py-7">
-      <ProgressBar progress={6} total={7} />
-      <Text className="mt-8 font-InterBold text-[34px] leading-[40px] text-[#1A1A1A]">Select your skin tone</Text>
-      <Text className="mt-2 font-InterRegular text-lg text-[#6B6B6B]">Preview is based on your style direction.</Text>
-
-      <View className="mt-7 gap-3">
-        {toneOptions.map((option) => {
-          const active = selected === option.skinToneKey;
-          return (
-            <Pressable
-              key={option.skinToneKey}
-              onPress={() => setSelected(option.skinToneKey)}
-              className="overflow-hidden rounded-2xl bg-white"
-              style={{ borderWidth: 2, borderColor: active ? '#660033' : '#E2E2E2' }}>
-              <Image source={{ uri: option.previewModel.imageUrl }} style={{ width: '100%', height: 160 }} contentFit="cover" />
-              <Text className="py-3 text-center font-InterMedium text-base text-[#1A1A1A]">{option.skinToneDisplayName}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View className="mt-auto pb-2 pt-4">
-        <TouchableOpacity className="items-center rounded-2xl bg-[#660033] py-4" onPress={onContinue}>
-          <Text className="font-InterMedium text-lg text-white">Continue</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    <OnboardingScreen
+      step={5}
+      total={6}
+      title="Choose skin tone"
+      subtitle="Each card uses your selected style direction with the default body type preset."
+      onBack={() => router.back()}
+      footer={<OnboardingFooter primaryLabel="Continue" onPrimaryPress={continueNext} primaryDisabled={!selectedSkinTone} primaryLoading={saveDraftMutation.isPending} />}>
+      {avatarFlow.bundleQuery.isLoading || avatarFlow.baseModelsQuery.isLoading ? <LoadingNotice label="Loading skin tone options…" /> : null}
+      {avatarFlow.bundleQuery.isError || avatarFlow.baseModelsQuery.isError ? <ErrorNotice label="We couldn’t load skin tone previews. Please retry." /> : null}
+      {cards.map((card) => (
+        <SelectionCard
+          key={card.label}
+          title={card.label}
+          selected={selectedSkinTone === card.skinTonePresetId}
+          onPress={() => setSelectedSkinTone(card.skinTonePresetId)}
+          media={card.imageUrl ? <Image source={{ uri: card.imageUrl }} style={{ width: '100%', height: 235, borderRadius: 18 }} contentFit="cover" /> : undefined}
+          trailing={<Text className="font-InterMedium text-sm" style={{ color: selectedSkinTone === card.skinTonePresetId ? palette.burgundy : palette.muted }}>{selectedSkinTone === card.skinTonePresetId ? 'Selected' : 'Choose'}</Text>}
+        />
+      ))}
+    </OnboardingScreen>
   );
 }

@@ -131,10 +131,20 @@ export type ImportSessionDetail = {
 
 export type BaseAvatarModel = {
   id: string;
+  key: string | null;
   name: string;
+  displayName: string | null;
   styleDirection: string | null;
+  skinTonePresetId: string | null;
+  skinToneKey: string | null;
+  bodyTypePresetId: string | null;
+  bodyTypeKey: string | null;
+  poseKey: string | null;
+  imagePath: string | null;
   imageUrl: string | null;
   description: string | null;
+  isDefault: boolean;
+  sortOrder: number;
 };
 
 export type CurrentAvatar = {
@@ -142,6 +152,13 @@ export type CurrentAvatar = {
   imageUrl: string | null;
   styleDirection: string | null;
   label: string | null;
+};
+
+export type MeProfile = {
+  id: string | null;
+  email: string | null;
+  onboardingComplete: boolean | null;
+  onboardingStatus: string | null;
 };
 
 type OutfitRecommendationResponse = {
@@ -469,6 +486,31 @@ export async function getImportSession(accessToken: string, importSessionId: str
   } satisfies ImportSessionDetail;
 }
 
+export async function getMe(accessToken: string) {
+  const data = await apiRequest<Record<string, unknown>>('/me', { accessToken });
+  const me = (data.me ?? data.profile ?? data.user ?? data) as Record<string, unknown>;
+  const onboarding = (me.onboarding ?? data.onboarding) as Record<string, unknown> | undefined;
+
+  return {
+    id: typeof me.id === 'string' ? me.id : typeof me.user_id === 'string' ? me.user_id : null,
+    email: typeof me.email === 'string' ? me.email : null,
+    onboardingComplete:
+      typeof onboarding?.is_complete === 'boolean'
+        ? onboarding.is_complete
+        : typeof me.is_onboarding_complete === 'boolean'
+          ? me.is_onboarding_complete
+          : typeof me.onboarding_complete === 'boolean'
+            ? me.onboarding_complete
+            : null,
+    onboardingStatus:
+      typeof onboarding?.status === 'string'
+        ? onboarding.status
+        : typeof me.onboarding_status === 'string'
+          ? me.onboarding_status
+          : null,
+  } satisfies MeProfile;
+}
+
 export async function listBaseAvatarModels(accessToken: string, styleDirection?: string | null) {
   const data = await apiRequest<{
     base_models?: unknown[];
@@ -484,13 +526,23 @@ export async function listBaseAvatarModels(accessToken: string, styleDirection?:
     (model) =>
       ({
         id: String(model.id ?? model.base_model_id ?? ''),
-        name: String(model.name ?? model.label ?? 'Base model'),
+        key: typeof model.key === 'string' ? model.key : null,
+        name: String(model.display_name ?? model.name ?? model.label ?? 'Base model'),
+        displayName: typeof model.display_name === 'string' ? model.display_name : typeof model.name === 'string' ? model.name : null,
         styleDirection: typeof model.style_direction === 'string' ? model.style_direction : null,
+        skinTonePresetId: typeof model.skin_tone_preset_id === 'string' ? model.skin_tone_preset_id : null,
+        skinToneKey: typeof model.skin_tone_key === 'string' ? model.skin_tone_key : null,
+        bodyTypePresetId: typeof model.body_type_preset_id === 'string' ? model.body_type_preset_id : null,
+        bodyTypeKey: typeof model.body_type_key === 'string' ? model.body_type_key : null,
+        poseKey: typeof model.pose_key === 'string' ? model.pose_key : null,
+        imagePath: typeof model.image_path === 'string' ? model.image_path : null,
         imageUrl:
           (typeof model.preview_image_url === 'string' ? model.preview_image_url : null) ??
           (typeof model.image_url === 'string' ? model.image_url : null) ??
           (typeof model.display_url === 'string' ? model.display_url : null),
         description: typeof model.description === 'string' ? model.description : null,
+        isDefault: Boolean(model.is_default),
+        sortOrder: typeof model.sort_order === 'number' ? model.sort_order : 0,
       }) satisfies BaseAvatarModel,
   ).filter((model) => Boolean(model.id));
 }

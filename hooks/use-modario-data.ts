@@ -6,6 +6,7 @@ import {
   deleteSavedOutfit,
   getCurrentAvatar,
   getImportSession,
+  getMe,
   getOutfitRecommendations,
   getSavedOutfitDetail,
   getWardrobeItemDetail,
@@ -13,6 +14,7 @@ import {
   listPlannedOutfits,
   listSavedOutfits,
   listWardrobeItems,
+  MeProfile,
   saveCandidate,
   selectBaseAvatar,
   updatePlannedOutfit,
@@ -22,6 +24,7 @@ import { useAuth } from '@/provider/auth-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const modarioQueryKeys = {
+  me: ['me'] as const,
   recommendations: ['outfitRecommendations'] as const,
   savedOutfits: ['savedOutfits'] as const,
   savedOutfitDetail: (outfitId: string) => ['savedOutfitDetail', outfitId] as const,
@@ -36,6 +39,18 @@ export const modarioQueryKeys = {
 function useAccessToken() {
   const { session } = useAuth();
   return session?.access_token;
+}
+
+export function useMe() {
+  const accessToken = useAccessToken();
+
+  return useQuery<MeProfile>({
+    queryKey: modarioQueryKeys.me,
+    enabled: Boolean(accessToken),
+    queryFn: () => getMe(accessToken!),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
 }
 
 export function useOutfitRecommendations() {
@@ -242,6 +257,7 @@ export function useSelectBaseAvatarMutation() {
     mutationFn: (baseModelId: string) => selectBaseAvatar(accessToken!, baseModelId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.currentAvatar });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.baseAvatars() });
     },
   });
 }

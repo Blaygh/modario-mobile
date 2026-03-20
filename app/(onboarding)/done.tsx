@@ -1,68 +1,81 @@
-import ProgressBar from '@/components/custom/progress-bar';
 import { BrandTheme } from '@/constants/theme';
-import { useCurrentAvatar, useOutfitRecommendations } from '@/hooks/use-modario-data';
-import { saveOnboardingState, triggerOnboardingProcessing } from '@/libs/onboarding-state';
-import { setOnboardingComplete } from '@/libs/onboarding-storage';
-import { useAuth } from '@/provider/auth-provider';
+import { ErrorNotice, OnboardingFooter, OnboardingScreen } from '@/components/custom/onboarding-ui';
+import { useCurrentAvatar, useMe, modarioQueryKeys } from '@/hooks/use-modario-data';
+import { onboardingQueryKeys, useOnboardingState, useSubmitOnboardingMutation } from '@/hooks/use-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
+import { Text, View } from 'react-native';
 
 const { palette, radius } = BrandTheme;
 
 export default function OnboardingDoneScreen() {
   const router = useRouter();
-  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const onboardingStateQuery = useOnboardingState();
   const currentAvatarQuery = useCurrentAvatar();
-  const recommendationsQuery = useOutfitRecommendations();
+  const meQuery = useMe();
+  const submitMutation = useSubmitOnboardingMutation();
 
   const finishOnboarding = async () => {
-    await saveOnboardingState({ is_complete: true, status: 'saved', last_error: null });
-    try {
-      await triggerOnboardingProcessing();
-    } catch (error) {
-      console.error('Failed to trigger onboarding processing:', error);
-    }
-    if (session?.user?.id) {
-      await setOnboardingComplete(session.user.id, true);
-    }
+    await submitMutation.mutateAsync();
+    queryClient.setQueryData(onboardingQueryKeys.state, (current: any) => (current ? { ...current, isComplete: true, status: 'saved' } : current));
+    queryClient.setQueryData(modarioQueryKeys.me, (current: any) => (current ? { ...current, onboardingComplete: true, onboardingStatus: 'saved' } : current));
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.state }),
+      queryClient.invalidateQueries({ queryKey: modarioQueryKeys.me }),
+    ]);
     router.replace('/(tabs)');
   };
 
   return (
-    <SafeAreaView className="flex-1 px-6 py-7" style={{ backgroundColor: palette.ivory }}>
-      <ProgressBar progress={7} total={7} />
-      <Text className="mt-8 font-InterBold text-[34px]" style={{ color: palette.ink }}>You&apos;re all set.</Text>
-      <Text className="mt-2 font-InterRegular text-lg" style={{ color: palette.muted }}>Your styling profile is ready to power real recommendations.</Text>
-
+    <OnboardingScreen
+      step={6}
+      total={6}
+      title="Finish onboarding"
+      subtitle="Submitting marks onboarding complete, takes you straight home, and leaves any downstream processing running in the background."
+      onBack={() => router.back()}
+      footer={<OnboardingFooter primaryLabel="Finish" onPrimaryPress={finishOnboarding} primaryLoading={submitMutation.isPending} />}>
+      {submitMutation.isError ? <ErrorNotice label={submitMutation.error instanceof Error ? submitMutation.error.message : 'Failed to finish onboarding.'} /> : null}
+      <View className="rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+        <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+          Ready to save
+        </Text>
+        <View className="mt-4" style={{ gap: 10 }}>
+          <SummaryRow label="Style direction" value={onboardingStateQuery.data?.styleDirection ?? 'Not selected'} />
+          <SummaryRow label="Style taste" value={`${onboardingStateQuery.data?.stylePicks.length ?? 0} looks selected`} />
+          <SummaryRow label="Colors" value={`${onboardingStateQuery.data?.colorLikes.length ?? 0} likes · ${onboardingStateQuery.data?.colorAvoids.length ?? 0} avoids`} />
+          <SummaryRow label="Occasions" value={onboardingStateQuery.data?.occasions.length ? onboardingStateQuery.data.occasions.join(', ') : 'Skipped'} />
+          <SummaryRow label="Avatar path" value={onboardingStateQuery.data?.avatarMode ?? 'skip'} />
+        </View>
+      </View>
       {currentAvatarQuery.data?.imageUrl ? (
-        <View className="mt-6 items-center rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
-          <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 112, height: 112, borderRadius: 56 }} contentFit="cover" />
-          <Text className="mt-3 font-InterSemiBold text-lg" style={{ color: palette.ink }}>{currentAvatarQuery.data.label ?? 'Selected base avatar'}</Text>
+        <View className="rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line }}>
+          <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+            Current avatar
+          </Text>
+          <View className="mt-3 flex-row items-center" style={{ gap: 12 }}>
+            <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 88, height: 88, borderRadius: 44 }} contentFit="cover" />
+            <Text className="flex-1 font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+              {currentAvatarQuery.data.label ?? 'Your current avatar is already associated with this account.'}
+            </Text>
+          </View>
         </View>
       ) : null}
-
-      <ScrollView horizontal className="mt-8" showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-3 pb-2">
-          {(recommendationsQuery.data ?? []).slice(0, 3).map((outfit) => (
-            <View key={outfit.id} className="w-[220px] overflow-hidden rounded-[24px] border bg-white" style={{ borderColor: palette.line, borderRadius: radius.card }}>
-              <Image source={{ uri: outfit.previewImageUrl ?? fallbackLook }} style={{ width: '100%', height: 170 }} contentFit="cover" />
-              <View className="p-3">
-                <Text className="font-InterMedium text-base" style={{ color: palette.ink }} numberOfLines={2}>{outfit.summary}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-
-      <View className="mt-auto gap-3 pb-2 pt-6">
-        <TouchableOpacity className="items-center rounded-[16px] py-4" style={{ backgroundColor: palette.burgundy }} onPress={finishOnboarding}>
-          <Text className="font-InterMedium text-lg text-white">Go to home</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      {meQuery.data?.onboardingStatus === 'failed' ? <ErrorNotice label="A prior processing attempt failed, but finishing onboarding still takes you into the app." /> : null}
+    </OnboardingScreen>
   );
 }
 
-const fallbackLook = 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80';
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row items-center justify-between" style={{ gap: 16 }}>
+      <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+        {label}
+      </Text>
+      <Text className="flex-1 text-right font-InterMedium text-sm" style={{ color: palette.ink }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
