@@ -4,15 +4,17 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import '../global.css';
 
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
+import { BrandTheme } from '@/constants/theme';
 import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useMe, useOnboardingState } from '@/hooks/use-onboarding';
 import { useOnlineManager } from '@/hooks/use-online-manager';
-import { isOnboardingComplete } from '@/libs/onboarding-storage';
 import { AuthProvider, useAuth } from '@/provider/auth-provider';
 
 export const unstable_settings = {
@@ -29,35 +31,15 @@ function AppNavigator() {
   const { session, initialized } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
+  const meQuery = useMe();
+  const onboardingStateQuery = useOnboardingState();
+  const isResolvingOnboarding =
+    Boolean(session) &&
+    ((meQuery.isLoading || meQuery.isFetching) || (onboardingStateQuery.isLoading && !meQuery.data));
+  const hasCompletedOnboarding = meQuery.data?.onboarding?.is_complete === true || onboardingStateQuery.data?.isComplete === true;
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadOnboardingState = async () => {
-      if (isMounted) {
-        setHasCompletedOnboarding(null);
-      }
-
-      const userId = session?.user?.id;
-      if (isMounted) {
-        setHasCompletedOnboarding(null);
-      }
-      const completed = userId ? await isOnboardingComplete(userId) : false;
-      if (isMounted) {
-        setHasCompletedOnboarding(completed);
-      }
-    };
-
-    loadOnboardingState();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [session?.user?.id, segments]);
-
-  useEffect(() => {
-    if (!initialized || hasCompletedOnboarding === null) {
+    if (!initialized || isResolvingOnboarding) {
       return;
     }
 
@@ -77,10 +59,14 @@ function AppNavigator() {
       return;
     }
 
-    if (rootSegment !== '(tabs)') {
+    if (rootSegment === '(auth)' || rootSegment === '(onboarding)' || !rootSegment) {
       router.replace('/(tabs)');
     }
-  }, [hasCompletedOnboarding, initialized, router, segments, session]);
+  }, [hasCompletedOnboarding, initialized, isResolvingOnboarding, router, segments, session]);
+
+  if (!initialized || isResolvingOnboarding) {
+    return <AppBootSplash message={session ? 'Loading your account…' : 'Starting Modario…'} />;
+  }
 
   return (
     <Stack>
@@ -88,6 +74,17 @@ function AppNavigator() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
+  );
+}
+
+function AppBootSplash({ message }: { message: string }) {
+  const { palette } = BrandTheme;
+
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ivory, paddingHorizontal: 24, gap: 16 }}>
+      <ActivityIndicator size="small" color={palette.burgundy} />
+      <Text style={{ color: palette.muted, fontFamily: 'Inter-Medium', fontSize: 15 }}>{message}</Text>
+    </View>
   );
 }
 

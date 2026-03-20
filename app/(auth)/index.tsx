@@ -73,7 +73,7 @@ export default function AuthScreen() {
         }
 
         if (data?.user) {
-          router.replace('/(onboarding)');
+          router.replace('/(tabs)');
         }
       }
     } catch (error) {
@@ -101,7 +101,7 @@ export default function AuthScreen() {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        router.push('/(onboarding)');
+        router.replace('/(tabs)');
       }
     })();
   }, [router]);
