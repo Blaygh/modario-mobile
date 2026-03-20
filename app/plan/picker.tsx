@@ -1,5 +1,6 @@
 import { AppHeader, EmptyState, FilterChip, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
+import { formatLocalDateKey } from '@/libs/date';
 import {
   useCreatePlannedOutfitMutation,
   useSaveCandidateMutation,
@@ -131,7 +132,7 @@ function getUpcomingDates() {
   return Array.from({ length: 21 }).map((_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
-    return date.toISOString().slice(0, 10);
+    return formatLocalDateKey(date);
   });
 }
 

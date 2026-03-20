@@ -1,6 +1,7 @@
 import { AppHeader, EmptyState, FilterChip, InfoNotice, PrimaryButton, SectionHeader, TagPill } from '@/components/custom/mvp-ui';
 import { RECOMMENDED_PRODUCTS } from '@/constants/mvp-data';
 import { BrandTheme } from '@/constants/theme';
+import { formatLocalDateKey } from '@/libs/date';
 import { useOutfitRecommendations, usePlannedOutfits, useProfile, useSaveCandidateMutation, useWardrobeItems } from '@/hooks/use-modario-data';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -196,7 +197,7 @@ function formatTag(value: string) {
 }
 
 function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalDateKey(new Date());
 }
 
 const fallbackLook = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80';

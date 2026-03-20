@@ -1,6 +1,7 @@
 import { AppHeader, EmptyState, FilterChip, InfoNotice, PrimaryButton, SectionHeader } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useOutfitRecommendations, usePlannedOutfits, useSavedOutfits } from '@/hooks/use-modario-data';
+import { formatLocalDateKey } from '@/libs/date';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -89,8 +90,8 @@ function getPlannerRange() {
   toDate.setDate(toDate.getDate() + 120);
 
   return {
-    from: fromDate.toISOString().slice(0, 10),
-    to: toDate.toISOString().slice(0, 10),
+    from: formatLocalDateKey(fromDate),
+    to: formatLocalDateKey(toDate),
   };
 }
 
