@@ -1,7 +1,8 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, InfoNotice, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useOnboardingState, useSaveOnboardingStateMutation, useUploadAvatarPhotoMutation } from '@/hooks/use-onboarding';
+import { useUploadAvatarPhotoMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -19,7 +20,7 @@ type SlotState = {
   uploadedPath: string | null;
 };
 
-const toPreviewUri = (value: string | null | undefined) => (value && (value.startsWith('file:') || value.startsWith('http'))) ? value : null;
+const toPreviewUri = (value: string | null | undefined) => (value && (value.startsWith('file:') || value.startsWith('http')) ? value : null);
 
 const SLOT_COPY: Record<SlotKey, { title: string; subtitle: string }> = {
   front: {
@@ -34,24 +35,22 @@ const SLOT_COPY: Record<SlotKey, { title: string; subtitle: string }> = {
 
 export default function AvatarUploadScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
+  const { draft, saveDraft } = useOnboardingSession();
   const uploadMutation = useUploadAvatarPhotoMutation();
   const [slots, setSlots] = useState<Record<SlotKey, SlotState>>({
     front: {
-      localUri: toPreviewUri(onboardingStateQuery.data?.avatarImageUrls[0]),
-      uploadedPath: onboardingStateQuery.data?.avatarImageUrls[0] ?? null,
+      localUri: toPreviewUri(draft?.avatarImageUrls[0]),
+      uploadedPath: draft?.avatarImageUrls[0] ?? null,
     },
     side: {
-      localUri: toPreviewUri(onboardingStateQuery.data?.avatarImageUrls[1]),
-      uploadedPath: onboardingStateQuery.data?.avatarImageUrls[1] ?? null,
+      localUri: toPreviewUri(draft?.avatarImageUrls[1]),
+      uploadedPath: draft?.avatarImageUrls[1] ?? null,
     },
   });
   const [activeSlot, setActiveSlot] = useState<SlotKey | null>(null);
 
   useEffect(() => {
-    const state = onboardingStateQuery.data;
-    if (!state) {
+    if (!draft) {
       return;
     }
 
@@ -63,23 +62,23 @@ export default function AvatarUploadScreen() {
 
       return {
         front: {
-          localUri: toPreviewUri(state.avatarImageUrls[0]),
-          uploadedPath: state.avatarImageUrls[0] ?? null,
+          localUri: toPreviewUri(draft.avatarImageUrls[0]),
+          uploadedPath: draft.avatarImageUrls[0] ?? null,
         },
         side: {
-          localUri: toPreviewUri(state.avatarImageUrls[1]),
-          uploadedPath: state.avatarImageUrls[1] ?? null,
+          localUri: toPreviewUri(draft.avatarImageUrls[1]),
+          uploadedPath: draft.avatarImageUrls[1] ?? null,
         },
       };
     });
-  }, [onboardingStateQuery.data]);
+  }, [draft]);
 
   const uploadedPaths = useMemo(
     () => (['front', 'side'] as SlotKey[]).map((slot) => slots[slot].uploadedPath).filter((value): value is string => Boolean(value)),
     [slots],
   );
   const canContinue = uploadedPaths.length >= 1;
-  const isBusy = uploadMutation.isPending || saveMutation.isPending;
+  const isBusy = uploadMutation.isPending;
 
   const updateSlot = (slot: SlotKey, next: Partial<SlotState>) => {
     setSlots((current) => ({
@@ -91,26 +90,40 @@ export default function AvatarUploadScreen() {
     }));
   };
 
-  const uploadAssetToSlot = async (slot: SlotKey, assetUri: string) => {
-    try {
-      setActiveSlot(slot);
-      updateSlot(slot, { localUri: assetUri });
-      const uploadedPath = await uploadMutation.mutateAsync(assetUri);
-      updateSlot(slot, { uploadedPath });
-
-      const nextPaths = (['front', 'side'] as SlotKey[])
-        .map((slotKey) => (slotKey === slot ? uploadedPath : slots[slotKey].uploadedPath))
-        .filter((value): value is string => Boolean(value));
-
-      await saveMutation.mutateAsync({
-        avatar_mode: 'upload',
+  const persistUploadedPaths = async (nextPaths: string[]) => {
+    await saveDraft(
+      {
+        avatar_mode: nextPaths.length ? 'upload' : 'skip',
         avatar_image_urls: nextPaths,
         avatar_base_model_id: null,
         avatar_skin_tone_preset_id: null,
         avatar_body_type_preset_id: null,
         avatar_status: 'saved',
         status: 'saved',
-      });
+      },
+      { screen: 'avatar-upload', step: 'avatar_upload' },
+    );
+  };
+
+  const uploadAssetToSlot = async (slot: SlotKey, assetUri: string) => {
+    try {
+      setActiveSlot(slot);
+      updateSlot(slot, { localUri: assetUri });
+      const uploadedPath = await uploadMutation.mutateAsync(assetUri);
+      const nextSlots = {
+        ...slots,
+        [slot]: {
+          localUri: assetUri,
+          uploadedPath,
+        },
+      };
+      setSlots(nextSlots);
+
+      const nextPaths = (['front', 'side'] as SlotKey[])
+        .map((slotKey) => nextSlots[slotKey].uploadedPath)
+        .filter((value): value is string => Boolean(value));
+
+      await persistUploadedPaths(nextPaths);
     } catch (error) {
       updateSlot(slot, { uploadedPath: null });
       Alert.alert('Upload failed', error instanceof Error ? error.message : 'We could not upload that photo. Please try again.');
@@ -180,17 +193,11 @@ export default function AvatarUploadScreen() {
     };
     setSlots(nextSlots);
 
-    await saveMutation.mutateAsync({
-      avatar_mode: nextSlots.front.uploadedPath || nextSlots.side.uploadedPath ? 'upload' : 'skip',
-      avatar_image_urls: (['front', 'side'] as SlotKey[])
-        .map((slotKey) => nextSlots[slotKey].uploadedPath)
-        .filter((value): value is string => Boolean(value)),
-      avatar_base_model_id: null,
-      avatar_skin_tone_preset_id: null,
-      avatar_body_type_preset_id: null,
-      avatar_status: 'saved',
-      status: 'saved',
-    });
+    const nextPaths = (['front', 'side'] as SlotKey[])
+      .map((slotKey) => nextSlots[slotKey].uploadedPath)
+      .filter((value): value is string => Boolean(value));
+
+    await persistUploadedPaths(nextPaths);
   };
 
   const persistAndContinue = async () => {
@@ -198,15 +205,7 @@ export default function AvatarUploadScreen() {
       return;
     }
 
-    await saveMutation.mutateAsync({
-      avatar_mode: 'upload',
-      avatar_image_urls: uploadedPaths,
-      avatar_base_model_id: null,
-      avatar_skin_tone_preset_id: null,
-      avatar_body_type_preset_id: null,
-      avatar_status: 'saved',
-      status: 'saved',
-    });
+    await persistUploadedPaths(uploadedPaths);
     router.push('/(onboarding)/done');
   };
 
@@ -304,7 +303,7 @@ export default function AvatarUploadScreen() {
                 ? 'You can continue with one photo, but adding a side photo is strongly recommended.'
                 : 'Add at least one photo to use this path.'}
           </Text>
-          <PrimaryButton label="Continue" fullWidth onPress={persistAndContinue} disabled={!canContinue || isBusy} loading={saveMutation.isPending && !uploadMutation.isPending} />
+          <PrimaryButton label="Continue" fullWidth onPress={persistAndContinue} disabled={!canContinue || isBusy} />
         </View>
       </View>
     </SafeAreaView>

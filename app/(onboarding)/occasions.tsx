@@ -1,7 +1,7 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { useRouter } from 'expo-router';
 import { BriefcaseBusiness, CalendarCheck2, Check, Dumbbell, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,15 +20,12 @@ const ICON_BY_LABEL: Record<string, any> = {
 
 export default function OccasionsScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
-  const styleDirection = onboardingStateQuery.data?.styleDirection ?? null;
-  const bundleQuery = useOnboardingBundle(styleDirection);
+  const { draft, bundleQuery, saveDraft } = useOnboardingSession();
   const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
-    setSelected(onboardingStateQuery.data?.occasions ?? []);
-  }, [onboardingStateQuery.data?.occasions]);
+    setSelected(draft?.occasions ?? []);
+  }, [draft?.occasions]);
 
   const occasions = useMemo(() => bundleQuery.data?.occasions.map((occasion) => occasion.label) ?? [], [bundleQuery.data?.occasions]);
 
@@ -42,7 +39,7 @@ export default function OccasionsScreen() {
   };
 
   const persistAndContinue = async (nextOccasions: string[]) => {
-    await saveMutation.mutateAsync({ occasions: nextOccasions, status: 'saved' });
+    await saveDraft({ occasions: nextOccasions, status: 'saved' }, { screen: 'occasions', step: 'occasions' });
     router.push('/(onboarding)/avatar');
   };
 
@@ -52,7 +49,7 @@ export default function OccasionsScreen() {
         <AppHeader title="Occasions" subtitle="Optional · choose any occasions that should influence outfit recommendations." showBack />
         <ProgressBar progress={5} total={7} />
 
-        {(bundleQuery.isLoading || onboardingStateQuery.isLoading) && (
+        {bundleQuery.isLoading && (
           <View className="mt-6 flex-row items-center" style={{ gap: 10 }}>
             <ActivityIndicator color={palette.burgundy} />
             <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
@@ -102,8 +99,8 @@ export default function OccasionsScreen() {
         </ScrollView>
 
         <View className="pb-2 pt-3" style={{ gap: 12 }}>
-          <SecondaryButton label="Skip" onPress={() => persistAndContinue([])} disabled={saveMutation.isPending} />
-          <PrimaryButton label="Continue" fullWidth onPress={() => persistAndContinue(selected)} disabled={saveMutation.isPending} loading={saveMutation.isPending} />
+          <SecondaryButton label="Skip" onPress={() => persistAndContinue([])} />
+          <PrimaryButton label="Continue" fullWidth onPress={() => persistAndContinue(selected)} />
         </View>
       </View>
     </SafeAreaView>

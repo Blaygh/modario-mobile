@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { OnboardingState } from '@/libs/onboarding-service';
+
 export type AvatarChoice = 'upload' | 'base' | 'skip' | null;
 export type BaseModelGender = 'male' | 'female' | null;
 export type StyleDirection = 'menswear' | 'womenswear' | null;
@@ -16,10 +18,17 @@ export type OnboardingProfile = {
   bodyType: string | null;
 };
 
+export type OnboardingCacheSnapshot = {
+  updatedAt: string;
+  state: OnboardingState;
+};
+
 export const ONBOARDING_PROFILE_KEY = 'modario-onboarding-profile';
 const ONBOARDING_COMPLETED_KEY_PREFIX = 'modario-onboarding-completed';
+const ONBOARDING_STATE_CACHE_KEY_PREFIX = 'modario-onboarding-state-cache';
 
 const onboardingCompletionKey = (userId: string) => `${ONBOARDING_COMPLETED_KEY_PREFIX}:${userId}`;
+const onboardingStateCacheKey = (userId: string) => `${ONBOARDING_STATE_CACHE_KEY_PREFIX}:${userId}`;
 
 export const defaultOnboardingProfile: OnboardingProfile = {
   styleCardIds: [],
@@ -61,13 +70,45 @@ export async function updateOnboardingProfile(patch: Partial<OnboardingProfile>)
   return next;
 }
 
+export async function getOnboardingStateCache(userId: string): Promise<OnboardingState | null> {
+  const stored = await AsyncStorage.getItem(onboardingStateCacheKey(userId));
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<OnboardingCacheSnapshot>;
+    return (parsed.state as OnboardingState | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setOnboardingStateCache(userId: string, state: OnboardingState) {
+  const snapshot: OnboardingCacheSnapshot = {
+    updatedAt: new Date().toISOString(),
+    state,
+  };
+
+  await AsyncStorage.setItem(onboardingStateCacheKey(userId), JSON.stringify(snapshot));
+}
+
+export async function clearOnboardingStateCache(userId?: string | null) {
+  if (!userId) {
+    return;
+  }
+
+  await Promise.all([
+    AsyncStorage.removeItem(onboardingStateCacheKey(userId)),
+    AsyncStorage.removeItem(onboardingCompletionKey(userId)),
+  ]);
+}
+
 export async function isOnboardingComplete(userId: string) {
-  // Deprecated convenience cache only. Backend onboarding state is the source of truth.
   const completed = await AsyncStorage.getItem(onboardingCompletionKey(userId));
   return completed === 'true';
 }
 
 export async function setOnboardingComplete(userId: string, completed: boolean) {
-  // Deprecated convenience cache only. Backend onboarding state is the source of truth.
   await AsyncStorage.setItem(onboardingCompletionKey(userId), completed ? 'true' : 'false');
 }

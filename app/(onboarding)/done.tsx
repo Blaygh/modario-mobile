@@ -2,7 +2,7 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, InfoNotice, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useCurrentAvatar, useOutfitRecommendations } from '@/hooks/use-modario-data';
-import { useOnboardingState, useSubmitOnboardingMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
@@ -12,13 +12,12 @@ const { palette, radius } = BrandTheme;
 
 export default function OnboardingDoneScreen() {
   const router = useRouter();
-  const submitMutation = useSubmitOnboardingMutation();
-  const onboardingStateQuery = useOnboardingState();
+  const { draft, submitFinal } = useOnboardingSession();
   const currentAvatarQuery = useCurrentAvatar();
   const recommendationsQuery = useOutfitRecommendations();
 
   const finishOnboarding = async () => {
-    await submitMutation.mutateAsync();
+    await submitFinal();
     router.replace('/(tabs)');
   };
 
@@ -38,9 +37,9 @@ export default function OnboardingDoneScreen() {
         <InfoNotice
           title="What happens next"
           description={
-            onboardingStateQuery.data?.avatarMode === 'upload'
+            draft?.avatarMode === 'upload'
               ? 'Your uploaded reference photos are already stored. Avatar generation begins only after submit, and any backend failure later will not revoke onboarding completion.'
-              : onboardingStateQuery.data?.avatarMode === 'base'
+              : draft?.avatarMode === 'base'
                 ? 'Your base model selection is already saved. Finish only marks onboarding complete and queues any downstream personalization work.'
                 : 'You skipped avatar setup for now, and that still counts as a valid completed onboarding flow.'
           }
@@ -71,14 +70,8 @@ export default function OnboardingDoneScreen() {
         </View>
       </ScrollView>
 
-      {submitMutation.isError ? (
-        <Text className="mt-4 font-InterRegular text-sm leading-6" style={{ color: '#B42318' }}>
-          {submitMutation.error instanceof Error ? submitMutation.error.message : 'We could not finish onboarding. Please retry.'}
-        </Text>
-      ) : null}
-
       <View className="mt-auto gap-3 pb-2 pt-6">
-        <PrimaryButton label="Go to Home" fullWidth onPress={finishOnboarding} loading={submitMutation.isPending} disabled={submitMutation.isPending} />
+        <PrimaryButton label="Go to Home" fullWidth onPress={finishOnboarding} />
       </View>
     </SafeAreaView>
   );

@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,15 +15,12 @@ import { useAppState } from '@/hooks/use-app-state';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useMe, useOnboardingState } from '@/hooks/use-onboarding';
 import { useOnlineManager } from '@/hooks/use-online-manager';
+import { queryClient } from '@/libs/query-client';
 import { AuthProvider, useAuth } from '@/provider/auth-provider';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 2 } },
-});
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,7 +33,7 @@ function AppNavigator() {
   const isResolvingOnboarding =
     Boolean(session) &&
     ((meQuery.isLoading || meQuery.isFetching) || (onboardingStateQuery.isLoading && !meQuery.data));
-  const hasCompletedOnboarding = meQuery.data?.onboarding?.is_complete === true || onboardingStateQuery.data?.isComplete === true;
+  const backendOnboardingComplete = meQuery.data?.onboarding?.is_complete ?? onboardingStateQuery.data?.isComplete ?? false;
 
   useEffect(() => {
     if (!initialized || isResolvingOnboarding) {
@@ -52,7 +49,7 @@ function AppNavigator() {
       return;
     }
 
-    if (!hasCompletedOnboarding) {
+    if (!backendOnboardingComplete) {
       if (rootSegment !== '(onboarding)') {
         router.replace('/(onboarding)');
       }
@@ -62,7 +59,7 @@ function AppNavigator() {
     if (rootSegment === '(auth)' || rootSegment === '(onboarding)' || !rootSegment) {
       router.replace('/(tabs)');
     }
-  }, [hasCompletedOnboarding, initialized, isResolvingOnboarding, router, segments, session]);
+  }, [backendOnboardingComplete, initialized, isResolvingOnboarding, router, segments, session]);
 
   if (!initialized || isResolvingOnboarding) {
     return <AppBootSplash message={session ? 'Loading your account…' : 'Starting Modario…'} />;
