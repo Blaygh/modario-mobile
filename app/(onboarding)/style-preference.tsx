@@ -1,7 +1,7 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -13,18 +13,16 @@ const { palette, shadow } = BrandTheme;
 
 export default function StylePreferenceScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
-  const styleDirection = onboardingStateQuery.data?.styleDirection ?? null;
-  const bundleQuery = useOnboardingBundle(styleDirection);
+  const { draft, bundleQuery, saveDraft } = useOnboardingSession();
+  const styleDirection = draft?.styleDirection ?? null;
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
 
   useEffect(() => {
-    const picks = onboardingStateQuery.data?.stylePicks;
+    const picks = draft?.stylePicks;
     if (Array.isArray(picks)) {
       setSelectedCards(picks);
     }
-  }, [onboardingStateQuery.data?.stylePicks]);
+  }, [draft?.stylePicks]);
 
   const styleCards = useMemo(() => bundleQuery.data?.styleCards.filter((card) => card.imageUrl) ?? [], [bundleQuery.data?.styleCards]);
   const selectionCount = selectedCards.length;
@@ -46,7 +44,7 @@ export default function StylePreferenceScreen() {
       return;
     }
 
-    await saveMutation.mutateAsync({ style_picks: selectedCards, status: 'saved' });
+    await saveDraft({ style_picks: selectedCards, status: 'saved' }, { screen: 'style-preference', step: 'style_taste' });
     router.push('/(onboarding)/color-preference');
   };
 
@@ -67,7 +65,7 @@ export default function StylePreferenceScreen() {
           </View>
         ) : (
           <>
-            {bundleQuery.isLoading || onboardingStateQuery.isLoading ? (
+            {bundleQuery.isLoading ? (
               <View className="mt-8 flex-row items-center" style={{ gap: 10 }}>
                 <ActivityIndicator color={palette.burgundy} />
                 <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
@@ -101,7 +99,6 @@ export default function StylePreferenceScreen() {
                     <Pressable
                       key={card.id}
                       onPress={() => toggle(card.id)}
-                      disabled={saveMutation.isPending}
                       style={{
                         width: '48%',
                         borderWidth: selected ? 2 : 1,
@@ -134,7 +131,7 @@ export default function StylePreferenceScreen() {
                   Select at least 2 looks before continuing.
                 </Text>
               ) : null}
-              <PrimaryButton label="Continue" fullWidth onPress={continueNext} disabled={!canContinue || saveMutation.isPending} loading={saveMutation.isPending} />
+              <PrimaryButton label="Continue" fullWidth onPress={continueNext} disabled={!canContinue} />
             </View>
           </>
         )}

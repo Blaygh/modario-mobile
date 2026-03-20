@@ -2,7 +2,7 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, InfoNotice, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useCurrentAvatar } from '@/hooks/use-modario-data';
-import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Camera, Check, ChevronRight, UserRound } from 'lucide-react-native';
@@ -38,26 +38,25 @@ const OPTIONS = [
 
 export default function AvatarScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
+  const { draft, isBootstrapping, saveDraft } = useOnboardingSession();
   const currentAvatarQuery = useCurrentAvatar();
-  const saveMutation = useSaveOnboardingStateMutation();
   const [choice, setChoice] = useState<'upload' | 'base' | 'skip' | null>(null);
 
   useEffect(() => {
-    if (onboardingStateQuery.data?.avatarMode) {
-      setChoice(onboardingStateQuery.data.avatarMode);
+    if (draft?.avatarMode) {
+      setChoice(draft.avatarMode);
     }
-  }, [onboardingStateQuery.data?.avatarMode]);
+  }, [draft?.avatarMode]);
 
   const currentAvatarLabel = useMemo(() => {
-    if (onboardingStateQuery.data?.avatarMode === 'base' && onboardingStateQuery.data?.avatarBaseModelId) {
+    if (draft?.avatarMode === 'base' && draft?.avatarBaseModelId) {
       return 'Base model already selected';
     }
-    if (onboardingStateQuery.data?.avatarMode === 'upload' && onboardingStateQuery.data?.avatarImageUrls.length) {
-      return `${onboardingStateQuery.data.avatarImageUrls.length} photo${onboardingStateQuery.data.avatarImageUrls.length === 1 ? '' : 's'} uploaded`;
+    if (draft?.avatarMode === 'upload' && draft?.avatarImageUrls.length) {
+      return `${draft.avatarImageUrls.length} photo${draft.avatarImageUrls.length === 1 ? '' : 's'} uploaded`;
     }
     return null;
-  }, [onboardingStateQuery.data?.avatarBaseModelId, onboardingStateQuery.data?.avatarImageUrls.length, onboardingStateQuery.data?.avatarMode]);
+  }, [draft?.avatarBaseModelId, draft?.avatarImageUrls.length, draft?.avatarMode]);
 
   const continueFlow = async () => {
     const selected = choice ?? 'skip';
@@ -68,12 +67,12 @@ export default function AvatarScreen() {
     }
 
     if (selected === 'base') {
-      await saveMutation.mutateAsync({ avatar_mode: 'base', status: 'saved' });
+      await saveDraft({ avatar_mode: 'base', status: 'saved' }, { screen: 'avatar', step: 'avatar_choice' });
       router.push('/(onboarding)/base-model-gender');
       return;
     }
 
-    await saveMutation.mutateAsync({
+    await saveDraft({
       avatar_mode: 'skip',
       avatar_image_urls: [],
       avatar_base_model_id: null,
@@ -81,7 +80,7 @@ export default function AvatarScreen() {
       avatar_body_type_preset_id: null,
       avatar_status: 'saved',
       status: 'saved',
-    });
+    }, { screen: 'avatar', step: 'avatar_choice' });
     router.push('/(onboarding)/done');
   };
 
@@ -91,7 +90,7 @@ export default function AvatarScreen() {
         <AppHeader title="Avatar" subtitle="Optional · choose how you want Modario to understand your look, or skip without blocking completion." showBack />
         <ProgressBar progress={6} total={7} />
 
-        {onboardingStateQuery.isLoading ? (
+        {isBootstrapping ? (
           <View className="mt-6 flex-row items-center" style={{ gap: 10 }}>
             <ActivityIndicator color={palette.burgundy} />
             <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
@@ -167,7 +166,7 @@ export default function AvatarScreen() {
         </View>
 
         <View className="mt-auto pb-2 pt-6">
-          <PrimaryButton label="Continue" fullWidth onPress={continueFlow} disabled={!choice || saveMutation.isPending} loading={saveMutation.isPending} />
+          <PrimaryButton label="Continue" fullWidth onPress={continueFlow} disabled={!choice} />
         </View>
       </View>
     </SafeAreaView>

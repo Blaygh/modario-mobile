@@ -1,9 +1,10 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { onboardingQueryKeys, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { onboardingQueryKeys } from '@/hooks/use-onboarding';
 import { getOnboardingBundle } from '@/libs/onboarding-bundle';
 import { useAuth } from '@/provider/auth-provider';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { StyleDirection } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -35,16 +36,15 @@ export default function StyleDirectionScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
+  const { draft, saveDraft } = useOnboardingSession();
   const [selectedDirection, setSelectedDirection] = useState<Exclude<StyleDirection, null> | null>(null);
 
   useEffect(() => {
-    const existingDirection = onboardingStateQuery.data?.styleDirection;
+    const existingDirection = draft?.styleDirection;
     if (existingDirection === 'menswear' || existingDirection === 'womenswear') {
       setSelectedDirection(existingDirection);
     }
-  }, [onboardingStateQuery.data?.styleDirection]);
+  }, [draft?.styleDirection]);
 
   const handleContinue = async () => {
     if (!selectedDirection || !session?.access_token) {
@@ -53,11 +53,14 @@ export default function StyleDirectionScreen() {
 
     Haptics.selectionAsync();
 
-    await saveMutation.mutateAsync({
-      style_direction: selectedDirection,
-      style_picks: null,
-      status: 'saved',
-    });
+    await saveDraft(
+      {
+        style_direction: selectedDirection,
+        style_picks: null,
+        status: 'saved',
+      },
+      { screen: 'style-direction', step: 'style_direction' },
+    );
 
     void queryClient.prefetchQuery({
       queryKey: onboardingQueryKeys.onboardingBundle(session.user.id, selectedDirection),
@@ -82,14 +85,14 @@ export default function StyleDirectionScreen() {
               <Pressable
                 key={card.id}
                 onPress={() => setSelectedDirection(card.id)}
-                disabled={saveMutation.isPending}
+                disabled={false}
                 className="overflow-hidden rounded-[26px] border"
                 style={{
                   borderColor: selected ? palette.burgundy : palette.line,
                   borderWidth: selected ? 2 : 1,
                   backgroundColor: palette.paper,
                   borderRadius: radius.card,
-                  opacity: saveMutation.isPending ? 0.7 : 1,
+                  opacity: 1,
                   ...shadow.soft,
                 }}>
                 <Image source={{ uri: card.imageUrl }} style={{ width: '100%', height: 180 }} contentFit="cover" />
@@ -121,8 +124,7 @@ export default function StyleDirectionScreen() {
             label="Continue"
             fullWidth
             onPress={handleContinue}
-            disabled={!selectedDirection || saveMutation.isPending}
-            loading={saveMutation.isPending}
+            disabled={!selectedDirection}
           />
         </View>
       </View>

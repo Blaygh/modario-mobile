@@ -1,7 +1,7 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { OnboardingColorOption } from '@/libs/onboarding-bundle';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -29,17 +29,14 @@ const toChip = (option: OnboardingColorOption): ColorChip => ({
 
 export default function ColorPreferenceScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
-  const styleDirection = onboardingStateQuery.data?.styleDirection ?? null;
-  const bundleQuery = useOnboardingBundle(styleDirection);
+  const { draft, bundleQuery, saveDraft } = useOnboardingSession();
   const [likedColors, setLikedColors] = useState<string[]>([]);
   const [avoidedColors, setAvoidedColors] = useState<string[]>([]);
 
   useEffect(() => {
-    setLikedColors(onboardingStateQuery.data?.colorLikes ?? []);
-    setAvoidedColors(onboardingStateQuery.data?.colorAvoids ?? []);
-  }, [onboardingStateQuery.data?.colorAvoids, onboardingStateQuery.data?.colorLikes]);
+    setLikedColors(draft?.colorLikes ?? []);
+    setAvoidedColors(draft?.colorAvoids ?? []);
+  }, [draft?.colorAvoids, draft?.colorLikes]);
 
   const colors = useMemo(() => bundleQuery.data?.colors.map(toChip) ?? [], [bundleQuery.data?.colors]);
 
@@ -84,7 +81,7 @@ export default function ColorPreferenceScreen() {
   };
 
   const persistAndContinue = async (nextLikes: string[], nextAvoids: string[]) => {
-    await saveMutation.mutateAsync({ color_likes: nextLikes, color_avoids: nextAvoids, status: 'saved' });
+    await saveDraft({ color_likes: nextLikes, color_avoids: nextAvoids, status: 'saved' }, { screen: 'color-preference', step: 'colors' });
     router.push('/(onboarding)/occasions');
   };
 
@@ -117,7 +114,7 @@ export default function ColorPreferenceScreen() {
         <AppHeader title="Colors" subtitle="Optional · save up to 3 likes and up to 3 avoids." showBack />
         <ProgressBar progress={4} total={7} />
 
-        {(bundleQuery.isLoading || onboardingStateQuery.isLoading) && (
+        {bundleQuery.isLoading && (
           <View className="mt-6 flex-row items-center" style={{ gap: 10 }}>
             <ActivityIndicator color={palette.burgundy} />
             <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
@@ -190,12 +187,12 @@ export default function ColorPreferenceScreen() {
 
         <View className="pb-2 pt-3" style={{ gap: 12 }}>
           <View className="flex-row justify-between">
-            <SecondaryButton label="Skip" onPress={() => persistAndContinue([], [])} disabled={saveMutation.isPending} />
+            <SecondaryButton label="Skip" onPress={() => persistAndContinue([], [])} />
             <Text className="self-center font-InterRegular text-sm" style={{ color: palette.muted }}>
               {likedColors.length}/3 likes · {avoidedColors.length}/3 avoids
             </Text>
           </View>
-          <PrimaryButton label="Continue" fullWidth onPress={() => persistAndContinue(likedColors, avoidedColors)} disabled={saveMutation.isPending} loading={saveMutation.isPending} />
+          <PrimaryButton label="Continue" fullWidth onPress={() => persistAndContinue(likedColors, avoidedColors)} />
         </View>
       </View>
     </SafeAreaView>
