@@ -1,36 +1,51 @@
 import {
-  archiveWardrobeItem,
+  BillingPlan,
+  createBillingCheckoutSession,
   createPlannedOutfit,
   CurrentAvatar,
   deletePlannedOutfit,
   deleteSavedOutfit,
+  deleteWardrobeItem,
+  getBillingEntitlement,
+  getBillingPlans,
   getCurrentAvatar,
   getImportSession,
   getOutfitRecommendations,
+  getProfile,
   getSavedOutfitDetail,
   getWardrobeItemDetail,
   listBaseAvatarModels,
   listPlannedOutfits,
   listSavedOutfits,
   listWardrobeItems,
+  RecommendationCandidate,
+  renameSavedOutfit,
   saveCandidate,
+  SavedOutfitDetail,
+  SavedOutfitSummary,
   selectBaseAvatar,
   updatePlannedOutfit,
   updateWardrobeItem,
+  commitWardrobeImportReview,
 } from '@/libs/modario-api';
 import { useAuth } from '@/provider/auth-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const modarioQueryKeys = {
-  recommendations: ['outfitRecommendations'] as const,
+  me: ['me'] as const,
+  onboardingState: ['onboardingState'] as const,
+  onboardingBundle: (styleDirection?: string | null) => ['onboardingBundle', styleDirection ?? 'unknown'] as const,
+  baseModels: (styleDirection?: string | null) => ['baseModels', styleDirection ?? 'all'] as const,
+  currentAvatar: ['currentAvatar'] as const,
+  outfitRecommendations: ['outfitRecommendations'] as const,
   savedOutfits: ['savedOutfits'] as const,
   savedOutfitDetail: (outfitId: string) => ['savedOutfitDetail', outfitId] as const,
   plannedOutfits: (from: string, to: string) => ['plannedOutfits', from, to] as const,
+  wardrobeItems: (active: 'active' | 'archived', role?: string | null) => ['wardrobeItems', active, role ?? 'all'] as const,
   wardrobeItemDetail: (itemId: string) => ['wardrobeItemDetail', itemId] as const,
-  importSession: (sessionId: string) => ['importSession', sessionId] as const,
-  baseAvatars: (styleDirection?: string | null) => ['baseAvatars', styleDirection ?? 'all'] as const,
-  currentAvatar: ['currentAvatar'] as const,
-  wardrobeItems: (role?: string | null) => ['wardrobeItems', role ?? 'all'] as const,
+  wardrobeImportSession: (sessionId: string) => ['wardrobeImportSession', sessionId] as const,
+  billingPlans: ['billingPlans'] as const,
+  billingEntitlement: ['billingEntitlement'] as const,
 };
 
 function useAccessToken() {
@@ -38,11 +53,26 @@ function useAccessToken() {
   return session?.access_token;
 }
 
-export function useOutfitRecommendations() {
+function invalidateAllPlannedOutfits(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: ['plannedOutfits'] });
+}
+
+export function useProfile() {
   const accessToken = useAccessToken();
 
   return useQuery({
-    queryKey: modarioQueryKeys.recommendations,
+    queryKey: modarioQueryKeys.me,
+    enabled: Boolean(accessToken),
+    queryFn: () => getProfile(accessToken!),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useOutfitRecommendations() {
+  const accessToken = useAccessToken();
+
+  return useQuery<RecommendationCandidate[]>({
+    queryKey: modarioQueryKeys.outfitRecommendations,
     enabled: Boolean(accessToken),
     queryFn: () => getOutfitRecommendations(accessToken!),
     staleTime: 60 * 1000,
@@ -52,7 +82,7 @@ export function useOutfitRecommendations() {
 export function useSavedOutfits() {
   const accessToken = useAccessToken();
 
-  return useQuery({
+  return useQuery<SavedOutfitSummary[]>({
     queryKey: modarioQueryKeys.savedOutfits,
     enabled: Boolean(accessToken),
     queryFn: () => listSavedOutfits(accessToken!),
@@ -63,7 +93,7 @@ export function useSavedOutfits() {
 export function useSavedOutfitDetail(outfitId?: string | null) {
   const accessToken = useAccessToken();
 
-  return useQuery({
+  return useQuery<SavedOutfitDetail>({
     queryKey: modarioQueryKeys.savedOutfitDetail(outfitId ?? ''),
     enabled: Boolean(accessToken && outfitId),
     queryFn: () => getSavedOutfitDetail(accessToken!, outfitId!),
@@ -80,16 +110,20 @@ export function usePlannedOutfits(from: string, to: string) {
   });
 }
 
-export function useWardrobeItems(role?: string | null) {
+export function useWardrobeItems(options?: { role?: string | null; active?: 'active' | 'archived' }) {
   const accessToken = useAccessToken();
+  const active = options?.active ?? 'active';
 
   return useQuery({
-    queryKey: modarioQueryKeys.wardrobeItems(role),
+    queryKey: modarioQueryKeys.wardrobeItems(active, options?.role),
     enabled: Boolean(accessToken),
-    queryFn: async () => {
-      const data = await listWardrobeItems(accessToken!, { active: true, limit: 50, offset: 0, role: role ?? undefined });
-      return data.items;
-    },
+    queryFn: () =>
+      listWardrobeItems(accessToken!, {
+        active: active === 'active',
+        limit: 100,
+        offset: 0,
+        role: options?.role ?? undefined,
+      }),
     staleTime: 60 * 1000,
   });
 }
@@ -108,15 +142,15 @@ export function useImportSession(sessionId?: string | null, enabled = true) {
   const accessToken = useAccessToken();
 
   return useQuery({
-    queryKey: modarioQueryKeys.importSession(sessionId ?? ''),
+    queryKey: modarioQueryKeys.wardrobeImportSession(sessionId ?? ''),
     enabled: Boolean(accessToken && sessionId && enabled),
     queryFn: () => getImportSession(accessToken!, sessionId!),
     refetchInterval: (query) => {
       const status = query.state.data?.status?.toLowerCase();
-      if (!status || ['review_required', 'completed', 'failed'].includes(status)) {
+      if (!status || ['review_required', 'committed', 'failed'].includes(status)) {
         return false;
       }
-      return 3000;
+      return 2500;
     },
   });
 }
@@ -125,7 +159,7 @@ export function useBaseAvatars(styleDirection?: string | null) {
   const accessToken = useAccessToken();
 
   return useQuery({
-    queryKey: modarioQueryKeys.baseAvatars(styleDirection),
+    queryKey: modarioQueryKeys.baseModels(styleDirection),
     enabled: Boolean(accessToken),
     queryFn: () => listBaseAvatarModels(accessToken!, styleDirection),
     staleTime: 5 * 60 * 1000,
@@ -143,6 +177,28 @@ export function useCurrentAvatar() {
   });
 }
 
+export function useBillingPlans() {
+  const accessToken = useAccessToken();
+
+  return useQuery<BillingPlan[]>({
+    queryKey: modarioQueryKeys.billingPlans,
+    enabled: Boolean(accessToken),
+    queryFn: () => getBillingPlans(accessToken!),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useBillingEntitlement() {
+  const accessToken = useAccessToken();
+
+  return useQuery({
+    queryKey: modarioQueryKeys.billingEntitlement,
+    enabled: Boolean(accessToken),
+    queryFn: () => getBillingEntitlement(accessToken!),
+    staleTime: 30 * 1000,
+  });
+}
+
 export function useSaveCandidateMutation() {
   const accessToken = useAccessToken();
   const queryClient = useQueryClient();
@@ -156,6 +212,20 @@ export function useSaveCandidateMutation() {
   });
 }
 
+export function useRenameOutfitMutation() {
+  const accessToken = useAccessToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ outfitId, name }: { outfitId: string; name: string }) => renameSavedOutfit(accessToken!, outfitId, name),
+    onSuccess: async (savedOutfit) => {
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.savedOutfits });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.savedOutfitDetail(savedOutfit.id) });
+      await invalidateAllPlannedOutfits(queryClient);
+    },
+  });
+}
+
 export function useDeleteOutfitMutation() {
   const accessToken = useAccessToken();
   const queryClient = useQueryClient();
@@ -165,7 +235,7 @@ export function useDeleteOutfitMutation() {
     onSuccess: async (_, outfitId) => {
       await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.savedOutfits });
       queryClient.removeQueries({ queryKey: modarioQueryKeys.savedOutfitDetail(outfitId) });
-      await queryClient.invalidateQueries({ queryKey: ['plannedOutfits'] });
+      await invalidateAllPlannedOutfits(queryClient);
     },
   });
 }
@@ -178,7 +248,7 @@ export function useCreatePlannedOutfitMutation() {
     mutationFn: (payload: { outfitId: string; plannedDate: string; slotIndex?: number; notes?: string }) =>
       createPlannedOutfit(accessToken!, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plannedOutfits'] });
+      await invalidateAllPlannedOutfits(queryClient);
     },
   });
 }
@@ -191,7 +261,7 @@ export function useUpdatePlannedOutfitMutation() {
     mutationFn: ({ planId, payload }: { planId: string; payload: { outfitId: string; slotIndex?: number; notes?: string } }) =>
       updatePlannedOutfit(accessToken!, planId, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plannedOutfits'] });
+      await invalidateAllPlannedOutfits(queryClient);
     },
   });
 }
@@ -203,7 +273,7 @@ export function useDeletePlannedOutfitMutation() {
   return useMutation({
     mutationFn: (planId: string) => deletePlannedOutfit(accessToken!, planId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plannedOutfits'] });
+      await invalidateAllPlannedOutfits(queryClient);
     },
   });
 }
@@ -217,19 +287,36 @@ export function useUpdateWardrobeItemMutation(itemId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.wardrobeItemDetail(itemId) });
       await queryClient.invalidateQueries({ queryKey: ['wardrobeItems'] });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.outfitRecommendations });
     },
   });
 }
 
-export function useArchiveWardrobeItemMutation(itemId: string) {
+export function useDeleteWardrobeItemMutation(itemId: string) {
   const accessToken = useAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => archiveWardrobeItem(accessToken!, itemId),
+    mutationFn: () => deleteWardrobeItem(accessToken!, itemId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.wardrobeItemDetail(itemId) });
+      queryClient.removeQueries({ queryKey: modarioQueryKeys.wardrobeItemDetail(itemId) });
       await queryClient.invalidateQueries({ queryKey: ['wardrobeItems'] });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.outfitRecommendations });
+    },
+  });
+}
+
+export function useCommitWardrobeImportReviewMutation(sessionId: string) {
+  const accessToken = useAccessToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (decisions: Array<{ detectedItemId: string; include: boolean; roleOverride: string | null }>) =>
+      commitWardrobeImportReview(accessToken!, sessionId, decisions),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.wardrobeImportSession(sessionId) });
+      await queryClient.invalidateQueries({ queryKey: ['wardrobeItems'] });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.outfitRecommendations });
     },
   });
 }
@@ -242,6 +329,15 @@ export function useSelectBaseAvatarMutation() {
     mutationFn: (baseModelId: string) => selectBaseAvatar(accessToken!, baseModelId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.currentAvatar });
+      await queryClient.invalidateQueries({ queryKey: modarioQueryKeys.me });
     },
+  });
+}
+
+export function useBillingCheckoutMutation() {
+  const accessToken = useAccessToken();
+
+  return useMutation({
+    mutationFn: (planKey: string) => createBillingCheckoutSession(accessToken!, planKey),
   });
 }

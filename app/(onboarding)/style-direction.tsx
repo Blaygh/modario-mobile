@@ -3,7 +3,6 @@ import { AppHeader, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { onboardingQueryKeys, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { getOnboardingBundle } from '@/libs/onboarding-bundle';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useAuth } from '@/provider/auth-provider';
 import { StyleDirection } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -58,10 +57,6 @@ export default function StyleDirectionScreen() {
       style_direction: selectedDirection,
       style_picks: null,
       status: 'saved',
-    });
-    await updateOnboardingProfile({
-      styleDirection: selectedDirection,
-      baseModelGender: selectedDirection === 'menswear' ? 'male' : 'female',
     });
 
     void queryClient.prefetchQuery({

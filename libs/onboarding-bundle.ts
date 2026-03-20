@@ -1,4 +1,3 @@
-import { getOnboardingProfile } from '@/libs/onboarding-storage';
 import { supabasePublishableKey, supabaseUrl } from '@/libs/supabase-config';
 
 export type OnboardingStyleCard = {
@@ -100,19 +99,6 @@ const normalizeModel = (raw: any): BaseAvatarModel => ({
   imageUrl: raw?.image_url ?? '',
 });
 
-export const loadBundleFiltersFromProfile = async (): Promise<Required<BundleFilters>> => {
-  const profile = await getOnboardingProfile();
-  const styleDirection =
-    profile.styleDirection === 'menswear' || profile.styleDirection === 'womenswear'
-      ? profile.styleDirection
-      : profile.baseModelGender === 'male'
-        ? 'menswear'
-        : 'womenswear';
-
-  return {
-    styleDirection,
-  };
-};
 
 export async function getOnboardingBundle(accessToken: string, filters: BundleFilters): Promise<OnboardingBundle> {
   const url = `${supabaseUrl}/functions/v1/get-onboarding-bundle`;

@@ -6,12 +6,14 @@ import {
   useSavedOutfits,
   useUpdatePlannedOutfitMutation,
 } from '@/hooks/use-modario-data';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { palette, radius } = BrandTheme;
+const SLOT_OPTIONS = [0, 1, 2, 3];
 
 export default function PlanOutfitPickerScreen() {
   const router = useRouter();
@@ -22,6 +24,7 @@ export default function PlanOutfitPickerScreen() {
     planId?: string;
     plannedDate?: string;
     notes?: string;
+    slotIndex?: string;
   }>();
   const savedQuery = useSavedOutfits();
   const saveCandidateMutation = useSaveCandidateMutation();
@@ -32,7 +35,7 @@ export default function PlanOutfitPickerScreen() {
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(params.outfitId ?? null);
   const [selectedDate, setSelectedDate] = useState(params.plannedDate ?? dates[0]);
   const [notes, setNotes] = useState(params.notes ?? '');
-  const [slotIndex] = useState(0);
+  const [slotIndex, setSlotIndex] = useState(Number(params.slotIndex ?? 0));
 
   const onSubmit = async () => {
     try {
@@ -65,15 +68,9 @@ export default function PlanOutfitPickerScreen() {
 
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Plan outfit" showBack />
+      <AppHeader title="Plan outfit" showBack subtitle={plannedFromCandidate ? 'Candidate outfits are auto-saved before planning.' : 'Choose a saved outfit, day, slot, and note.'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-        <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
-          {plannedFromCandidate
-            ? 'This recommendation will be saved automatically before it is added to your planner.'
-            : 'Pick a saved outfit, choose a day, and add an optional note.'}
-        </Text>
-
-        <Text className="mt-5 font-InterSemiBold text-base" style={{ color: palette.ink }}>Choose a day</Text>
+        <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>Choose a day</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
           <View className="flex-row gap-2 pb-2">
             {dates.map((date) => (
@@ -82,11 +79,16 @@ export default function PlanOutfitPickerScreen() {
           </View>
         </ScrollView>
 
+        <Text className="mt-5 font-InterSemiBold text-base" style={{ color: palette.ink }}>Slot</Text>
+        <View className="mt-3 flex-row flex-wrap gap-2">
+          {SLOT_OPTIONS.map((slot) => (
+            <FilterChip key={slot} label={`Slot ${slot + 1}`} selected={slotIndex === slot} onPress={() => setSlotIndex(slot)} />
+          ))}
+        </View>
+
         <Text className="mt-5 font-InterSemiBold text-base" style={{ color: palette.ink }}>Saved outfits</Text>
         {savedQuery.isLoading ? <Text className="mt-3 font-InterRegular text-sm" style={{ color: palette.muted }}>Loading saved outfits…</Text> : null}
-        {!savedQuery.isLoading && !(savedQuery.data?.length ?? 0) && !plannedFromCandidate ? (
-          <EmptyState title="No saved outfits" description="Save a recommendation first, then come back to plan it." />
-        ) : null}
+        {!savedQuery.isLoading && !(savedQuery.data?.length ?? 0) && !plannedFromCandidate ? <EmptyState title="No saved outfits" description="Save a recommendation first, then come back to plan it." /> : null}
         <View className="mt-3 gap-3">
           {(savedQuery.data ?? []).map((outfit) => {
             const selected = selectedOutfitId === outfit.id;
@@ -94,16 +96,19 @@ export default function PlanOutfitPickerScreen() {
               <Pressable
                 key={outfit.id}
                 onPress={() => setSelectedOutfitId(outfit.id)}
-                className="rounded-[20px] border bg-white p-4"
+                className="overflow-hidden rounded-[20px] border bg-white"
                 style={{ borderColor: selected ? palette.burgundy : palette.line, borderWidth: selected ? 1.5 : 1, borderRadius: radius.card }}>
-                <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{outfit.name}</Text>
-                <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Saved on {outfit.createdAt ? outfit.createdAt.slice(0, 10) : 'recently'}.</Text>
+                <Image source={{ uri: outfit.previewImageUrl ?? fallbackLook }} style={{ width: '100%', height: 156 }} contentFit="cover" />
+                <View className="p-4">
+                  <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>{outfit.name}</Text>
+                  <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Saved on {outfit.createdAt ? outfit.createdAt.slice(0, 10) : 'recently'}.</Text>
+                </View>
               </Pressable>
             );
           })}
         </View>
 
-        <Text className="mt-5 font-InterSemiBold text-base" style={{ color: palette.ink }}>Note</Text>
+        <Text className="mt-5 font-InterSemiBold text-base" style={{ color: palette.ink }}>Notes</Text>
         <TextInput
           value={notes}
           onChangeText={setNotes}
@@ -115,22 +120,19 @@ export default function PlanOutfitPickerScreen() {
         />
       </ScrollView>
       <View className="gap-3 pb-2 pt-4">
-        <PrimaryButton
-          label={params.planId ? 'Update plan' : 'Plan outfit'}
-          fullWidth
-          onPress={onSubmit}
-          loading={saveCandidateMutation.isPending || createPlanMutation.isPending || updatePlanMutation.isPending}
-        />
-        <SecondaryButton label="Cancel" fullWidth onPress={() => router.back()} />
+        <PrimaryButton label={params.planId ? 'Update plan' : 'Plan outfit'} fullWidth onPress={onSubmit} loading={saveCandidateMutation.isPending || createPlanMutation.isPending || updatePlanMutation.isPending} />
+        <SecondaryButton label="Cancel" onPress={() => router.back()} />
       </View>
     </SafeAreaView>
   );
 }
 
 function getUpcomingDates() {
-  return Array.from({ length: 14 }).map((_, index) => {
+  return Array.from({ length: 21 }).map((_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
     return date.toISOString().slice(0, 10);
   });
 }
+
+const fallbackLook = 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80';

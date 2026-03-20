@@ -2,7 +2,6 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -47,7 +46,6 @@ export default function StylePreferenceScreen() {
       return;
     }
 
-    await updateOnboardingProfile({ styleCardIds: selectedCards });
     await saveMutation.mutateAsync({ style_picks: selectedCards, status: 'saved' });
     router.push('/(onboarding)/color-preference');
   };

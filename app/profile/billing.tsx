@@ -1,85 +1,63 @@
-import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
-import { createBillingCheckoutSession, getBillingMe, getBillingPlans } from '@/libs/billing';
-import { useAuth } from '@/provider/auth-provider';
-import { useQueries } from '@tanstack/react-query';
+import { AppHeader, EmptyState, InfoNotice, PrimaryButton } from '@/components/custom/mvp-ui';
+import { BrandTheme } from '@/constants/theme';
+import { modarioQueryKeys, useBillingCheckoutMutation, useBillingEntitlement, useBillingPlans } from '@/hooks/use-modario-data';
+import { useQueryClient } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const { palette, radius } = BrandTheme;
+
 export default function BillingScreen() {
-  const { session } = useAuth();
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const queryClient = useQueryClient();
+  const entitlementQuery = useBillingEntitlement();
+  const plansQuery = useBillingPlans();
+  const checkoutMutation = useBillingCheckoutMutation();
 
-  const [meQuery, plansQuery] = useQueries({
-    queries: [
-      {
-        queryKey: ['billing-me'],
-        enabled: Boolean(session?.access_token),
-        queryFn: () => getBillingMe(session!.access_token),
-        staleTime: 60 * 1000,
-      },
-      {
-        queryKey: ['billing-plans'],
-        enabled: Boolean(session?.access_token),
-        queryFn: () => getBillingPlans(session!.access_token),
-        staleTime: 60 * 1000,
-      },
-    ],
-  });
-
-  const entitlement = meQuery.data?.entitlement;
-  const plans = plansQuery.data?.billing_plans ?? [];
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: modarioQueryKeys.billingEntitlement });
+  }, [queryClient]);
 
   const startCheckout = async (planKey: string) => {
-    if (!session?.access_token) {
-      return;
-    }
-
-    try {
-      setIsCheckingOut(true);
-      const checkout = await createBillingCheckoutSession(session.access_token, planKey);
-      await WebBrowser.openBrowserAsync(checkout.url);
-    } finally {
-      setIsCheckingOut(false);
-    }
+    const checkout = await checkoutMutation.mutateAsync(planKey);
+    await WebBrowser.openBrowserAsync(checkout.url);
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F7F7F7] px-4 py-4">
-      <AppHeader title="Billing" />
+    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
+      <AppHeader title="Billing" showBack subtitle="Plans come from the backend. Manage / cancellation stays hidden until that flow is truly supported." />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+        {entitlementQuery.isLoading ? <InfoNotice title="Loading subscription" description="We’re refreshing your current entitlement." /> : null}
+        {entitlementQuery.data ? (
+          <View className="rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+            <Text className="font-InterSemiBold text-xl" style={{ color: palette.ink }}>Current plan</Text>
+            <Text className="mt-2 font-InterRegular text-sm" style={{ color: palette.muted }}>{entitlementQuery.data.planKey ?? 'free'}</Text>
+            <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Status: {entitlementQuery.data.status}</Text>
+            <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Entitled: {entitlementQuery.data.isEntitled ? 'Yes' : 'No'}</Text>
+            {entitlementQuery.data.currentPeriodEnd ? <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Renews / ends: {new Date(entitlementQuery.data.currentPeriodEnd).toLocaleDateString()}</Text> : null}
+          </View>
+        ) : null}
 
-      {meQuery.isLoading ? <Text className="mb-3 text-sm text-[#6B6B6B]">Loading subscription…</Text> : null}
-      {meQuery.error ? <Text className="mb-3 text-sm text-[#B42318]">Failed to load billing entitlement.</Text> : null}
-
-      <View className="rounded-2xl border border-[#E5E5E5] bg-white p-4">
-        <Text className="font-InterSemiBold text-xl text-[#1A1A1A]">Current Plan</Text>
-        <Text className="mt-1 text-sm text-[#6B6B6B]">{entitlement?.plan_key ?? 'free'}</Text>
-        <Text className="mt-2 text-sm text-[#6B6B6B]">Status: {entitlement?.status ?? 'unknown'}</Text>
-        <Text className="mt-1 text-sm text-[#6B6B6B]">Entitled: {entitlement?.is_entitled ? 'Yes' : 'No'}</Text>
-      </View>
-
-      <View className="mt-3 rounded-2xl border border-[#E5E5E5] bg-white p-4">
-        <Text className="font-InterSemiBold text-xl text-[#1A1A1A]">Available Plans</Text>
-        {plansQuery.isLoading ? <Text className="mt-2 text-sm text-[#6B6B6B]">Loading plans…</Text> : null}
-        {plansQuery.error ? <Text className="mt-2 text-sm text-[#B42318]">Failed to load plans.</Text> : null}
-        <View className="mt-3 gap-2">
-          {plans.map((plan) => (
-            <View key={plan.key} className="rounded-xl border border-[#E5E5E5] bg-[#F9F9F9] p-3">
-              <Text className="font-InterSemiBold text-base text-[#1A1A1A]">{plan.name}</Text>
-              <Text className="text-sm text-[#6B6B6B]">Interval: {plan.interval}</Text>
-              <Text className="text-xs text-[#8A8A8A]">{plan.key}</Text>
-              <View className="mt-2">
-                <PrimaryButton label={isCheckingOut ? 'Opening checkout…' : `Checkout ${plan.name}`} onPress={() => startCheckout(plan.key)} />
+        <View className="mt-4 gap-3">
+          {plansQuery.isLoading ? <InfoNotice title="Loading plans" description="We’re requesting live billing plans from the backend." /> : null}
+          {plansQuery.isError ? <EmptyState title="Plans unavailable" description="We couldn’t load billing plans right now." /> : null}
+          {(plansQuery.data ?? []).map((plan) => (
+            <View key={plan.key} className="rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+              <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>{plan.name}</Text>
+              <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>Interval: {plan.interval}</Text>
+              <Text className="mt-1 font-InterRegular text-xs" style={{ color: palette.muted }}>{plan.key}</Text>
+              <View className="mt-3">
+                <PrimaryButton label={checkoutMutation.isPending ? 'Opening checkout…' : `Checkout ${plan.name}`} onPress={() => startCheckout(plan.key)} disabled={checkoutMutation.isPending} />
               </View>
             </View>
           ))}
         </View>
-      </View>
 
-      <View className="mt-auto gap-3 pb-3">
-        <SecondaryButton label="Manage subscription" />
-      </View>
+        <View className="mt-4">
+          <InfoNotice title="Manage subscription" description="Manage / cancel isn’t shown yet because that backend flow is not available. We avoid implying otherwise." />
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

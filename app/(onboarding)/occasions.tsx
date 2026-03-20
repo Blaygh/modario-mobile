@@ -2,7 +2,6 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useOnboardingBundle, useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
 import { useRouter } from 'expo-router';
 import { BriefcaseBusiness, CalendarCheck2, Check, Dumbbell, Sparkles } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -19,8 +18,6 @@ const ICON_BY_LABEL: Record<string, any> = {
   Fitness: Dumbbell,
 };
 
-const FALLBACK_OCCASIONS = ['Everyday', 'Work', 'Night Out', 'Events', 'Fitness'];
-
 export default function OccasionsScreen() {
   const router = useRouter();
   const onboardingStateQuery = useOnboardingState();
@@ -33,10 +30,7 @@ export default function OccasionsScreen() {
     setSelected(onboardingStateQuery.data?.occasions ?? []);
   }, [onboardingStateQuery.data?.occasions]);
 
-  const occasions = useMemo(() => {
-    const labels = bundleQuery.data?.occasions.map((occasion) => occasion.label) ?? [];
-    return labels.length ? labels : FALLBACK_OCCASIONS;
-  }, [bundleQuery.data?.occasions]);
+  const occasions = useMemo(() => bundleQuery.data?.occasions.map((occasion) => occasion.label) ?? [], [bundleQuery.data?.occasions]);
 
   const toggleOccasion = (occasion: string) => {
     if (selected.includes(occasion)) {
@@ -48,7 +42,6 @@ export default function OccasionsScreen() {
   };
 
   const persistAndContinue = async (nextOccasions: string[]) => {
-    await updateOnboardingProfile({ occasions: nextOccasions });
     await saveMutation.mutateAsync({ occasions: nextOccasions, status: 'saved' });
     router.push('/(onboarding)/avatar');
   };
@@ -71,12 +64,20 @@ export default function OccasionsScreen() {
         {bundleQuery.isError ? (
           <View className="mt-6 rounded-[24px] border bg-white p-4" style={{ borderColor: '#E7C9D2' }}>
             <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
-              We couldn’t load the full backend bundle, so a limited fallback occasion list is shown for now.
+              We couldn’t load backend occasion options yet. Retry or go back—this step should stay bundle-driven.
             </Text>
           </View>
         ) : null}
 
         <ScrollView className="mt-6 flex-1" showsVerticalScrollIndicator={false}>
+          {!bundleQuery.isLoading && !bundleQuery.isError && !occasions.length ? (
+            <View className="rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line }}>
+              <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                No occasion options are currently available for this onboarding bundle. You can skip and continue.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={{ gap: 12 }}>
             {occasions.map((occasion) => {
               const active = selected.includes(occasion);
