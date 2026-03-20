@@ -24,10 +24,8 @@ export type OnboardingCacheSnapshot = {
 };
 
 export const ONBOARDING_PROFILE_KEY = 'modario-onboarding-profile';
-const ONBOARDING_COMPLETED_KEY_PREFIX = 'modario-onboarding-completed';
 const ONBOARDING_STATE_CACHE_KEY_PREFIX = 'modario-onboarding-state-cache';
 
-const onboardingCompletionKey = (userId: string) => `${ONBOARDING_COMPLETED_KEY_PREFIX}:${userId}`;
 const onboardingStateCacheKey = (userId: string) => `${ONBOARDING_STATE_CACHE_KEY_PREFIX}:${userId}`;
 
 export const defaultOnboardingProfile: OnboardingProfile = {
@@ -98,17 +96,5 @@ export async function clearOnboardingStateCache(userId?: string | null) {
     return;
   }
 
-  await Promise.all([
-    AsyncStorage.removeItem(onboardingStateCacheKey(userId)),
-    AsyncStorage.removeItem(onboardingCompletionKey(userId)),
-  ]);
-}
-
-export async function isOnboardingComplete(userId: string) {
-  const completed = await AsyncStorage.getItem(onboardingCompletionKey(userId));
-  return completed === 'true';
-}
-
-export async function setOnboardingComplete(userId: string, completed: boolean) {
-  await AsyncStorage.setItem(onboardingCompletionKey(userId), completed ? 'true' : 'false');
+  await AsyncStorage.removeItem(onboardingStateCacheKey(userId));
 }

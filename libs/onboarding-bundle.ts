@@ -85,6 +85,8 @@ type BundleFilters = {
 
 const REQUEST_TIMEOUT_MS = 12000;
 
+type BundleErrorCategory = 'timeout' | 'server' | 'network' | 'malformed' | 'unknown';
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asString = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback);
 const asOptionalString = (value: unknown) => (typeof value === 'string' && value.trim().length > 0 ? value : undefined);
@@ -95,6 +97,39 @@ const asArray = (value: unknown) => (Array.isArray(value) ? value : []);
 const normalizeHex = (value: string | undefined) => {
   if (!value) return '#E5E5E5';
   return value.startsWith('#') ? value : `#${value}`;
+};
+
+const optimizeOnboardingImageUrl = (value: string) => {
+  if (!value) {
+    return value;
+  }
+
+  if (value.includes('images.unsplash.com') && !value.includes('q=')) {
+    return `${value}${value.includes('?') ? '&' : '?'}auto=format&fit=crop&w=900&q=80`;
+  }
+
+  return value;
+};
+
+const categorizeBundleError = (error: unknown, status?: number | null): BundleErrorCategory => {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (error.name === 'AbortError' || message.includes('timed out')) {
+      return 'timeout';
+    }
+    if (message.includes('malformed') || message.includes('missing')) {
+      return 'malformed';
+    }
+    if (message.includes('network') || message.includes('fetch')) {
+      return 'network';
+    }
+  }
+
+  if (typeof status === 'number' && status >= 500) {
+    return 'server';
+  }
+
+  return 'unknown';
 };
 
 const assertNonEmpty = (value: string, message: string) => {
@@ -121,7 +156,7 @@ const normalizeModel = (raw: unknown): BaseAvatarModel => {
     styleDirection,
     skinToneKey: asOptionalString(raw.skin_tone_key) ?? (isRecord(raw.skin_tone_preset) ? asOptionalString(raw.skin_tone_preset.key) : undefined),
     bodyTypeKey: asOptionalString(raw.body_type_key) ?? (isRecord(raw.body_type_preset) ? asOptionalString(raw.body_type_preset.key) : undefined),
-    imageUrl: assertNonEmpty(asString(raw.image_url), 'Base avatar model was missing an image URL.'),
+    imageUrl: optimizeOnboardingImageUrl(assertNonEmpty(asString(raw.image_url), 'Base avatar model was missing an image URL.')),
   };
 };
 
@@ -141,7 +176,7 @@ function parseStyleCards(payload: unknown) {
     return {
       id: assertNonEmpty(asString(card.id), `Style card at index ${index} was missing an id.`),
       title: assertNonEmpty(asString(card.title), `Style card ${asString(card.id, String(index))} was missing a title.`),
-      imageUrl: assertNonEmpty(imageUrl ?? '', `Style card ${asString(card.id, String(index))} was missing an image URL.`),
+      imageUrl: optimizeOnboardingImageUrl(assertNonEmpty(imageUrl ?? '', `Style card ${asString(card.id, String(index))} was missing an image URL.`)),
     } satisfies OnboardingStyleCard;
   });
 }
@@ -309,6 +344,7 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
   const url = `${supabaseUrl}/functions/v1/get-onboarding-bundle`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let responseStatus: number | null = null;
 
   try {
     const response = await fetch(url, {
@@ -322,14 +358,16 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
       signal: controller.signal,
     });
 
+    responseStatus = response.status;
+
     if (!response.ok) {
       logTelemetry({
         event: 'onboarding.bundle.request_failed',
         level: 'warn',
         endpoint: '/functions/v1/get-onboarding-bundle',
         operation: 'getOnboardingBundle',
-        status: response.status,
-        context: { styleDirection: filters.styleDirection ?? 'womenswear' },
+        status: responseStatus,
+        context: { styleDirection: filters.styleDirection ?? 'womenswear', category: categorizeBundleError(undefined, responseStatus) },
       });
       throw new Error(`Failed to load onboarding bundle (${response.status})`);
     }
@@ -347,6 +385,7 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
         styleCards: bundle.styleCards.length,
         colors: bundle.colors.length,
         occasions: bundle.occasions.length,
+        hasBaseAvatarFlow: Boolean(bundle.baseAvatarFlow),
       },
     });
 
@@ -359,7 +398,8 @@ export async function getOnboardingBundle(accessToken: string, filters: BundleFi
         endpoint: '/functions/v1/get-onboarding-bundle',
         operation: 'getOnboardingBundle',
         message: error.name === 'AbortError' ? 'Request timed out' : error.message,
-        context: { styleDirection: filters.styleDirection ?? 'womenswear' },
+        status: responseStatus,
+        context: { styleDirection: filters.styleDirection ?? 'womenswear', category: categorizeBundleError(error, responseStatus) },
       });
     }
 

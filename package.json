@@ -9,7 +9,10 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "web:offline": "EXPO_OFFLINE=1 EXPO_NO_DOCTOR=1 expo start --web --offline"
+    "web:offline": "EXPO_OFFLINE=1 EXPO_NO_DOCTOR=1 expo start --web --offline",
+    "typecheck": "tsc --noEmit",
+    "smoke:onboarding": "node ./scripts/smoke-onboarding.mjs",
+    "smoke:bootstrap": "node ./scripts/smoke-auth-bootstrap.mjs"
   },
   "dependencies": {
     "@expo/html-elements": "^0.10.1",
