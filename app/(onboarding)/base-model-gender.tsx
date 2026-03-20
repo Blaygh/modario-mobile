@@ -2,10 +2,10 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useBaseAvatars } from '@/hooks/use-modario-data';
-import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { deriveAvatarDraftFromSelection, deriveBaseAvatarOptions } from '@/libs/avatar-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { Check } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
@@ -15,19 +15,18 @@ const { palette, radius, shadow } = BrandTheme;
 
 export default function BaseModelStyleDirectionScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
+  const { draft, saveDraft } = useOnboardingSession();
   const baseModelsQuery = useBaseAvatars();
   const [selectedDirection, setSelectedDirection] = useState<'menswear' | 'womenswear' | null>(null);
 
   const restoredDraft = useMemo(
-    () => deriveAvatarDraftFromSelection(baseModelsQuery.data ?? [], onboardingStateQuery.data?.avatarBaseModelId),
-    [baseModelsQuery.data, onboardingStateQuery.data?.avatarBaseModelId],
+    () => deriveAvatarDraftFromSelection(baseModelsQuery.data ?? [], draft?.avatarBaseModelId),
+    [baseModelsQuery.data, draft?.avatarBaseModelId],
   );
   const avatarOptions = useMemo(() => deriveBaseAvatarOptions(baseModelsQuery.data ?? []), [baseModelsQuery.data]);
 
   useEffect(() => {
-    const fromState = onboardingStateQuery.data?.styleDirection;
+    const fromState = draft?.styleDirection;
     if (restoredDraft?.styleDirection) {
       setSelectedDirection(restoredDraft.styleDirection);
       return;
@@ -35,21 +34,24 @@ export default function BaseModelStyleDirectionScreen() {
     if (fromState === 'menswear' || fromState === 'womenswear') {
       setSelectedDirection(fromState);
     }
-  }, [onboardingStateQuery.data?.styleDirection, restoredDraft?.styleDirection]);
+  }, [draft?.styleDirection, restoredDraft?.styleDirection]);
 
   const handleContinue = async () => {
     if (!selectedDirection) {
       return;
     }
 
-    await saveMutation.mutateAsync({
+    await saveDraft(
+      {
       avatar_mode: 'base',
       style_direction: selectedDirection,
-      avatar_skin_tone_preset_id: onboardingStateQuery.data?.avatarSkinTonePresetId ?? avatarOptions.defaultSkinTone?.id ?? null,
-      avatar_body_type_preset_id: onboardingStateQuery.data?.avatarBodyTypePresetId ?? avatarOptions.defaultBodyType?.id ?? null,
+      avatar_skin_tone_preset_id: draft?.avatarSkinTonePresetId ?? avatarOptions.defaultSkinTone?.id ?? null,
+      avatar_body_type_preset_id: draft?.avatarBodyTypePresetId ?? avatarOptions.defaultBodyType?.id ?? null,
       avatar_status: 'saved',
       status: 'saved',
-    });
+      },
+      { screen: 'base-model-gender', step: 'avatar_style_direction' },
+    );
     router.push('/(onboarding)/base-model-skin-tone');
   };
 
@@ -97,7 +99,7 @@ export default function BaseModelStyleDirectionScreen() {
                   borderRadius: radius.card,
                   ...shadow.soft,
                 }}>
-                <Image source={{ uri: option.model.imageUrl ?? fallbackBaseModel }} style={{ width: '100%', height: 220 }} contentFit="cover" />
+                <Image source={{ uri: option.model.imageUrl ?? fallbackBaseModel }} style={{ width: '100%', height: 220 }} contentFit="cover" cachePolicy="memory-disk" />
                 <View className="p-4" style={{ gap: 8 }}>
                   <View className="flex-row items-center justify-between">
                     <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
@@ -117,8 +119,8 @@ export default function BaseModelStyleDirectionScreen() {
         </View>
 
         <View className="mt-auto pb-2 pt-6" style={{ gap: 10 }}>
-          <SecondaryButton label="Back to avatar choice" onPress={() => router.replace('/(onboarding)/avatar')} disabled={saveMutation.isPending} />
-          <PrimaryButton label="Continue" fullWidth onPress={handleContinue} disabled={!selectedDirection || saveMutation.isPending} loading={saveMutation.isPending} />
+          <SecondaryButton label="Back to avatar choice" onPress={() => router.replace('/(onboarding)/avatar')} />
+          <PrimaryButton label="Continue" fullWidth onPress={handleContinue} disabled={!selectedDirection} />
         </View>
       </View>
     </SafeAreaView>

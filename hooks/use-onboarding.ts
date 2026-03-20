@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { uploadAvatarReferenceImage } from '@/libs/avatar-onboarding';
 import { getOnboardingBundle, OnboardingBundle } from '@/libs/onboarding-bundle';
-import { setOnboardingComplete, setOnboardingStateCache } from '@/libs/onboarding-storage';
+import { setOnboardingStateCache } from '@/libs/onboarding-storage';
 import {
   getMe,
   getOnboardingState,
@@ -39,7 +39,7 @@ function shouldRetry(failureCount: number, error: unknown) {
   }
 
   const message = error instanceof Error ? error.message.toLowerCase() : '';
-  if (message.includes('malformed') || message.includes('missing')) {
+  if (message.includes('malformed') || message.includes('missing') || message.includes('unauthorized')) {
     return false;
   }
 
@@ -102,7 +102,6 @@ export function useSaveOnboardingStateMutation() {
       queryClient.setQueryData<OnboardingState | null>(onboardingQueryKeys.onboardingState(userId), savedState);
       if (userId) {
         await setOnboardingStateCache(userId, savedState);
-        await setOnboardingComplete(userId, savedState.isComplete);
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: onboardingQueryKeys.onboardingState(userId) }),
@@ -157,7 +156,6 @@ export function useSubmitOnboardingMutation() {
 
       if (userId) {
         await setOnboardingStateCache(userId, savedState);
-        await setOnboardingComplete(userId, true);
       }
 
       void triggerOnboardingProcessing().catch((error) => {

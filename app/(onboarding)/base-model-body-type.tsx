@@ -2,57 +2,56 @@ import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useBaseAvatars } from '@/hooks/use-modario-data';
-import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
 import { deriveAvatarDraftFromSelection, getBodyTypePreviewOptions } from '@/libs/avatar-onboarding';
+import { useOnboardingSession } from '@/provider/onboarding-provider';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View, Pressable } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { palette, radius, shadow } = BrandTheme;
 
 export default function BaseModelBodyTypeScreen() {
   const router = useRouter();
-  const onboardingStateQuery = useOnboardingState();
-  const saveMutation = useSaveOnboardingStateMutation();
+  const { draft, saveDraft } = useOnboardingSession();
   const baseModelsQuery = useBaseAvatars();
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
   const restoredDraft = useMemo(
-    () => deriveAvatarDraftFromSelection(baseModelsQuery.data ?? [], onboardingStateQuery.data?.avatarBaseModelId),
-    [baseModelsQuery.data, onboardingStateQuery.data?.avatarBaseModelId],
+    () => deriveAvatarDraftFromSelection(baseModelsQuery.data ?? [], draft?.avatarBaseModelId),
+    [baseModelsQuery.data, draft?.avatarBaseModelId],
   );
   const styleDirection =
-    restoredDraft?.styleDirection ??
-    (onboardingStateQuery.data?.styleDirection === 'menswear' || onboardingStateQuery.data?.styleDirection === 'womenswear'
-      ? onboardingStateQuery.data.styleDirection
-      : null);
-  const skinTonePresetId = restoredDraft?.skinTonePresetId ?? onboardingStateQuery.data?.avatarSkinTonePresetId ?? null;
+    restoredDraft?.styleDirection ?? (draft?.styleDirection === 'menswear' || draft?.styleDirection === 'womenswear' ? draft.styleDirection : null);
+  const skinTonePresetId = restoredDraft?.skinTonePresetId ?? draft?.avatarSkinTonePresetId ?? null;
   const previewOptions = useMemo(
     () => (styleDirection && skinTonePresetId ? getBodyTypePreviewOptions(baseModelsQuery.data ?? [], styleDirection, skinTonePresetId) : []),
     [baseModelsQuery.data, skinTonePresetId, styleDirection],
   );
 
   useEffect(() => {
-    const restoredPresetId = restoredDraft?.bodyTypePresetId ?? onboardingStateQuery.data?.avatarBodyTypePresetId ?? previewOptions[0]?.id ?? null;
+    const restoredPresetId = restoredDraft?.bodyTypePresetId ?? draft?.avatarBodyTypePresetId ?? previewOptions[0]?.id ?? null;
     if (restoredPresetId) {
       setSelectedPresetId(restoredPresetId);
     }
-  }, [onboardingStateQuery.data?.avatarBodyTypePresetId, previewOptions, restoredDraft?.bodyTypePresetId]);
+  }, [draft?.avatarBodyTypePresetId, previewOptions, restoredDraft?.bodyTypePresetId]);
 
   const handleContinue = async () => {
     if (!selectedPresetId) {
       return;
     }
 
-    await saveMutation.mutateAsync({
-      avatar_mode: 'base',
-      avatar_body_type_preset_id: selectedPresetId,
-      avatar_status: 'saved',
-      status: 'saved',
-    });
+    await saveDraft(
+      {
+        avatar_mode: 'base',
+        avatar_body_type_preset_id: selectedPresetId,
+        avatar_status: 'saved',
+        status: 'saved',
+      },
+      { screen: 'base-model-body-type', step: 'avatar_body_type' },
+    );
     router.push('/(onboarding)/base-model-confirm');
   };
 
@@ -92,7 +91,7 @@ export default function BaseModelBodyTypeScreen() {
                 onPress={() => setSelectedPresetId(option.id)}
                 className="overflow-hidden rounded-[24px] border bg-white"
                 style={{ borderColor: selected ? palette.burgundy : palette.line, borderWidth: selected ? 2 : 1, borderRadius: radius.card, ...shadow.soft }}>
-                <Image source={{ uri: option.model.imageUrl ?? fallbackBaseModel }} style={{ width: '100%', height: 200 }} contentFit="cover" />
+                <Image source={{ uri: option.model.imageUrl ?? fallbackBaseModel }} style={{ width: '100%', height: 200 }} contentFit="cover" cachePolicy="memory-disk" />
                 <View className="p-4" style={{ gap: 8 }}>
                   <View className="flex-row items-center justify-between">
                     <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
@@ -112,8 +111,8 @@ export default function BaseModelBodyTypeScreen() {
         </View>
 
         <View className="pb-2 pt-4" style={{ gap: 10 }}>
-          <SecondaryButton label="Back" onPress={() => router.back()} disabled={saveMutation.isPending} />
-          <PrimaryButton label="Continue" fullWidth onPress={handleContinue} disabled={!selectedPresetId || saveMutation.isPending} loading={saveMutation.isPending} />
+          <SecondaryButton label="Back" onPress={() => router.back()} />
+          <PrimaryButton label="Continue" fullWidth onPress={handleContinue} disabled={!selectedPresetId} />
         </View>
       </View>
     </SafeAreaView>
