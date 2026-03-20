@@ -1,13 +1,13 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { AppHeader, PrimaryButton } from '@/components/custom/mvp-ui';
+import { AppHeader, InfoNotice, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
+import { useCurrentAvatar } from '@/hooks/use-modario-data';
 import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
-import { saveAvatarReferences } from '@/libs/onboarding-state';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Camera, ChevronRight, UserRound } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Camera, Check, ChevronRight, UserRound } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { palette, radius, shadow } = BrandTheme;
@@ -16,60 +16,105 @@ const OPTIONS = [
   {
     id: 'upload' as const,
     title: 'Upload photos',
-    description: 'Photo upload will be added in a future phase.',
+    description: 'Add at least one reference photo now, with dedicated front and side slots.',
     icon: Camera,
-    disabled: true,
+    tone: 'Warm start · preferred with 2 photos',
   },
   {
     id: 'base' as const,
     title: 'Choose base model',
-    description: 'Use a backend-backed base avatar now.',
+    description: 'Pick a backend-driven model by style direction, skin tone, body type, then confirm.',
     icon: UserRound,
+    tone: 'Live backend cards',
   },
   {
     id: 'skip' as const,
     title: 'Skip for now',
-    description: 'Continue without avatar setup and finish onboarding.',
+    description: 'Finish onboarding now and add or update your avatar later without blocking Home.',
     icon: ChevronRight,
+    tone: 'Non-blocking',
   },
 ];
 
 export default function AvatarScreen() {
   const router = useRouter();
   const onboardingStateQuery = useOnboardingState();
+  const currentAvatarQuery = useCurrentAvatar();
   const saveMutation = useSaveOnboardingStateMutation();
   const [choice, setChoice] = useState<'upload' | 'base' | 'skip' | null>(null);
 
   useEffect(() => {
-    setChoice(onboardingStateQuery.data?.avatarMode ?? 'skip');
+    if (onboardingStateQuery.data?.avatarMode) {
+      setChoice(onboardingStateQuery.data.avatarMode);
+    }
   }, [onboardingStateQuery.data?.avatarMode]);
+
+  const currentAvatarLabel = useMemo(() => {
+    if (onboardingStateQuery.data?.avatarMode === 'base' && onboardingStateQuery.data?.avatarBaseModelId) {
+      return 'Base model already selected';
+    }
+    if (onboardingStateQuery.data?.avatarMode === 'upload' && onboardingStateQuery.data?.avatarImageUrls.length) {
+      return `${onboardingStateQuery.data.avatarImageUrls.length} photo${onboardingStateQuery.data.avatarImageUrls.length === 1 ? '' : 's'} uploaded`;
+    }
+    return null;
+  }, [onboardingStateQuery.data?.avatarBaseModelId, onboardingStateQuery.data?.avatarImageUrls.length, onboardingStateQuery.data?.avatarMode]);
 
   const continueFlow = async () => {
     const selected = choice ?? 'skip';
-    await updateOnboardingProfile({ avatarChoice: selected });
 
     if (selected === 'upload') {
-      await saveAvatarReferences([]);
+      router.push('/(onboarding)/avatar-upload');
       return;
     }
 
-    await saveMutation.mutateAsync({ avatar_mode: selected, avatar_image_urls: [], status: 'saved' });
-
     if (selected === 'base') {
+      await saveMutation.mutateAsync({ avatar_mode: 'base', status: 'saved' });
       router.push('/(onboarding)/base-model-gender');
       return;
     }
 
+    await saveMutation.mutateAsync({
+      avatar_mode: 'skip',
+      avatar_image_urls: [],
+      avatar_base_model_id: null,
+      avatar_skin_tone_preset_id: null,
+      avatar_body_type_preset_id: null,
+      avatar_status: 'saved',
+      status: 'saved',
+    });
     router.push('/(onboarding)/done');
   };
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: palette.ivory }}>
       <View className="flex-1 px-4 py-4">
-        <AppHeader title="Avatar" subtitle="Optional · choose a base model now or skip and finish onboarding." showBack />
+        <AppHeader title="Avatar" subtitle="Optional · choose how you want Modario to understand your look, or skip without blocking completion." showBack />
         <ProgressBar progress={6} total={7} />
 
-        <View className="mt-6" style={{ gap: 12 }}>
+        {onboardingStateQuery.isLoading ? (
+          <View className="mt-6 flex-row items-center" style={{ gap: 10 }}>
+            <ActivityIndicator color={palette.burgundy} />
+            <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+              Loading your avatar step…
+            </Text>
+          </View>
+        ) : null}
+
+        {currentAvatarQuery.data?.imageUrl ? (
+          <View className="mt-6 flex-row items-center rounded-[24px] border bg-white p-4" style={{ borderColor: palette.line, borderRadius: radius.card, gap: 14 }}>
+            <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 72, height: 72, borderRadius: 36 }} contentFit="cover" />
+            <View className="flex-1" style={{ gap: 4 }}>
+              <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>
+                {currentAvatarQuery.data.label ?? 'Current avatar'}
+              </Text>
+              <Text className="font-InterRegular text-sm leading-5" style={{ color: palette.muted }}>
+                {currentAvatarLabel ?? 'Your latest avatar is already available on this account.'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        <View className="mt-6" style={{ gap: 14 }}>
           {OPTIONS.map((option) => {
             const Icon = option.icon;
             const selected = choice === option.id;
@@ -77,26 +122,35 @@ export default function AvatarScreen() {
             return (
               <Pressable
                 key={option.id}
-                onPress={() => !option.disabled && setChoice(option.id)}
-                disabled={option.disabled}
-                className="rounded-[20px] border px-4 py-4"
+                onPress={() => setChoice(option.id)}
+                className="rounded-[24px] border bg-white px-4 py-4"
                 style={{
                   borderColor: selected ? palette.burgundy : palette.line,
+                  borderWidth: selected ? 2 : 1,
                   backgroundColor: selected ? palette.roseFog : palette.paper,
                   borderRadius: radius.card,
-                  opacity: option.disabled ? 0.55 : 1,
                   ...shadow.soft,
                 }}>
-                <View className="flex-row items-center" style={{ gap: 12 }}>
-                  <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: palette.roseFog }}>
-                    <Icon size={20} color={palette.burgundy} />
+                <View className="flex-row items-start" style={{ gap: 14 }}>
+                  <View className="h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: selected ? palette.burgundy : palette.roseFog }}>
+                    <Icon size={21} color={selected ? '#FFFFFF' : palette.burgundy} />
                   </View>
-                  <View className="flex-1">
-                    <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>
-                      {option.title}
-                    </Text>
-                    <Text className="mt-1 font-InterRegular text-sm leading-5" style={{ color: palette.muted }}>
+                  <View className="flex-1" style={{ gap: 4 }}>
+                    <View className="flex-row items-center justify-between" style={{ gap: 10 }}>
+                      <Text className="font-InterSemiBold text-base" style={{ color: palette.ink }}>
+                        {option.title}
+                      </Text>
+                      <View
+                        className="h-6 w-6 items-center justify-center rounded-full border"
+                        style={{ borderColor: selected ? palette.burgundy : palette.line, backgroundColor: selected ? palette.burgundy : palette.paper }}>
+                        {selected ? <Check size={14} color="#FFFFFF" /> : null}
+                      </View>
+                    </View>
+                    <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
                       {option.description}
+                    </Text>
+                    <Text className="font-InterMedium text-xs uppercase tracking-[1.2px]" style={{ color: palette.burgundySoft }}>
+                      {option.tone}
                     </Text>
                   </View>
                 </View>
@@ -105,7 +159,14 @@ export default function AvatarScreen() {
           })}
         </View>
 
-        <View className="mt-auto pb-2 pt-4">
+        <View className="mt-6">
+          <InfoNotice
+            title="Processing stays in the background"
+            description="If you upload photos, generation waits until you submit onboarding. After submit, you go straight to Home even if backend processing is still pending or later fails."
+          />
+        </View>
+
+        <View className="mt-auto pb-2 pt-6">
           <PrimaryButton label="Continue" fullWidth onPress={continueFlow} disabled={!choice || saveMutation.isPending} loading={saveMutation.isPending} />
         </View>
       </View>

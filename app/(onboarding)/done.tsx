@@ -1,8 +1,8 @@
 import ProgressBar from '@/components/custom/progress-bar';
-import { AppHeader, PrimaryButton } from '@/components/custom/mvp-ui';
+import { AppHeader, InfoNotice, PrimaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
 import { useCurrentAvatar, useOutfitRecommendations } from '@/hooks/use-modario-data';
-import { useSubmitOnboardingMutation } from '@/hooks/use-onboarding';
+import { useOnboardingState, useSubmitOnboardingMutation } from '@/hooks/use-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
@@ -13,6 +13,7 @@ const { palette, radius } = BrandTheme;
 export default function OnboardingDoneScreen() {
   const router = useRouter();
   const submitMutation = useSubmitOnboardingMutation();
+  const onboardingStateQuery = useOnboardingState();
   const currentAvatarQuery = useCurrentAvatar();
   const recommendationsQuery = useOutfitRecommendations();
 
@@ -23,24 +24,37 @@ export default function OnboardingDoneScreen() {
 
   return (
     <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Finish onboarding" subtitle="Submitting marks onboarding complete for your account. Background processing can continue after you enter Home." showBack />
+      <AppHeader title="Finish onboarding" subtitle="Submitting marks onboarding complete for your account and sends you directly to Home while anything else processes in the background." showBack />
       <ProgressBar progress={7} total={7} />
 
       <Text className="mt-6 font-InterBold text-[32px] leading-[38px]" style={{ color: palette.ink }}>
-        You&apos;re all set.
+        You&apos;re ready to enter Modario.
       </Text>
       <Text className="mt-2 font-InterRegular text-base leading-6" style={{ color: palette.muted }}>
-        We’ll save your onboarding profile now, mark it complete, and take you straight to Home. If personalization finishes later or hits an error, you can still keep using the app.
+        Finish saves your latest onboarding state, marks completion for this account, and lets post-submit processing continue without holding you here.
       </Text>
 
-      {currentAvatarQuery.data?.imageUrl ? (
-        <View className="mt-6 items-center rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
-          <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 112, height: 112, borderRadius: 56 }} contentFit="cover" />
-          <Text className="mt-3 font-InterSemiBold text-lg" style={{ color: palette.ink }}>
-            {currentAvatarQuery.data.label ?? 'Selected base avatar'}
-          </Text>
-        </View>
-      ) : null}
+      <View className="mt-6" style={{ gap: 12 }}>
+        <InfoNotice
+          title="What happens next"
+          description={
+            onboardingStateQuery.data?.avatarMode === 'upload'
+              ? 'Your uploaded reference photos are already stored. Avatar generation begins only after submit, and any backend failure later will not revoke onboarding completion.'
+              : onboardingStateQuery.data?.avatarMode === 'base'
+                ? 'Your base model selection is already saved. Finish only marks onboarding complete and queues any downstream personalization work.'
+                : 'You skipped avatar setup for now, and that still counts as a valid completed onboarding flow.'
+          }
+        />
+
+        {currentAvatarQuery.data?.imageUrl ? (
+          <View className="items-center rounded-[24px] border bg-white p-5" style={{ borderColor: palette.line, borderRadius: radius.card }}>
+            <Image source={{ uri: currentAvatarQuery.data.imageUrl }} style={{ width: 112, height: 112, borderRadius: 56 }} contentFit="cover" />
+            <Text className="mt-3 font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+              {currentAvatarQuery.data.label ?? 'Current avatar'}
+            </Text>
+          </View>
+        ) : null}
+      </View>
 
       <ScrollView horizontal className="mt-8" showsHorizontalScrollIndicator={false}>
         <View className="flex-row gap-3 pb-2">
@@ -56,6 +70,12 @@ export default function OnboardingDoneScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {submitMutation.isError ? (
+        <Text className="mt-4 font-InterRegular text-sm leading-6" style={{ color: '#B42318' }}>
+          {submitMutation.error instanceof Error ? submitMutation.error.message : 'We could not finish onboarding. Please retry.'}
+        </Text>
+      ) : null}
 
       <View className="mt-auto gap-3 pb-2 pt-6">
         <PrimaryButton label="Go to Home" fullWidth onPress={finishOnboarding} loading={submitMutation.isPending} disabled={submitMutation.isPending} />

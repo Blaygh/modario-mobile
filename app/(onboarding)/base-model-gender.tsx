@@ -1,112 +1,128 @@
 import ProgressBar from '@/components/custom/progress-bar';
 import { AppHeader, PrimaryButton, SecondaryButton } from '@/components/custom/mvp-ui';
 import { BrandTheme } from '@/constants/theme';
-import { useBaseAvatars, useCurrentAvatar, useSelectBaseAvatarMutation } from '@/hooks/use-modario-data';
+import { useBaseAvatars } from '@/hooks/use-modario-data';
 import { useOnboardingState, useSaveOnboardingStateMutation } from '@/hooks/use-onboarding';
-import { updateOnboardingProfile } from '@/libs/onboarding-storage';
+import { deriveAvatarDraftFromSelection, deriveBaseAvatarOptions } from '@/libs/avatar-onboarding';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Check } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { palette, radius } = BrandTheme;
-const directions = ['menswear', 'womenswear'] as const;
+const { palette, radius, shadow } = BrandTheme;
 
-export default function BaseModelSelectionScreen() {
+export default function BaseModelStyleDirectionScreen() {
   const router = useRouter();
   const onboardingStateQuery = useOnboardingState();
-  const initialDirection = onboardingStateQuery.data?.styleDirection === 'menswear' ? 'menswear' : 'womenswear';
-  const [styleDirection, setStyleDirection] = useState<(typeof directions)[number]>(initialDirection);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const saveMutation = useSaveOnboardingStateMutation();
-  const baseModelsQuery = useBaseAvatars(styleDirection);
-  const currentAvatarQuery = useCurrentAvatar();
-  const selectAvatarMutation = useSelectBaseAvatarMutation();
+  const baseModelsQuery = useBaseAvatars();
+  const [selectedDirection, setSelectedDirection] = useState<'menswear' | 'womenswear' | null>(null);
 
-  const models = baseModelsQuery.data ?? [];
-  const activeModelId = selectedModelId ?? currentAvatarQuery.data?.id ?? models[0]?.id ?? null;
-  const selectedModel = models.find((model) => model.id === activeModelId) ?? models[0] ?? null;
+  const restoredDraft = useMemo(
+    () => deriveAvatarDraftFromSelection(baseModelsQuery.data ?? [], onboardingStateQuery.data?.avatarBaseModelId),
+    [baseModelsQuery.data, onboardingStateQuery.data?.avatarBaseModelId],
+  );
+  const avatarOptions = useMemo(() => deriveBaseAvatarOptions(baseModelsQuery.data ?? []), [baseModelsQuery.data]);
 
   useEffect(() => {
-    if (onboardingStateQuery.data?.styleDirection === 'menswear' || onboardingStateQuery.data?.styleDirection === 'womenswear') {
-      setStyleDirection(onboardingStateQuery.data.styleDirection);
+    const fromState = onboardingStateQuery.data?.styleDirection;
+    if (restoredDraft?.styleDirection) {
+      setSelectedDirection(restoredDraft.styleDirection);
+      return;
     }
-  }, [onboardingStateQuery.data?.styleDirection]);
+    if (fromState === 'menswear' || fromState === 'womenswear') {
+      setSelectedDirection(fromState);
+    }
+  }, [onboardingStateQuery.data?.styleDirection, restoredDraft?.styleDirection]);
 
-  const onContinue = async () => {
-    if (!selectedModel) {
+  const handleContinue = async () => {
+    if (!selectedDirection) {
       return;
     }
 
-    await updateOnboardingProfile({ baseModelGender: styleDirection === 'menswear' ? 'male' : 'female', styleDirection });
     await saveMutation.mutateAsync({
       avatar_mode: 'base',
-      style_direction: styleDirection,
-      avatar_base_model_id: selectedModel.id,
+      style_direction: selectedDirection,
+      avatar_skin_tone_preset_id: onboardingStateQuery.data?.avatarSkinTonePresetId ?? avatarOptions.defaultSkinTone?.id ?? null,
+      avatar_body_type_preset_id: onboardingStateQuery.data?.avatarBodyTypePresetId ?? avatarOptions.defaultBodyType?.id ?? null,
+      avatar_status: 'saved',
       status: 'saved',
     });
-    await selectAvatarMutation.mutateAsync(selectedModel.id);
-    router.push('/(onboarding)/done');
+    router.push('/(onboarding)/base-model-skin-tone');
   };
 
   return (
-    <SafeAreaView className="flex-1 px-4 py-4" style={{ backgroundColor: palette.ivory }}>
-      <AppHeader title="Base model" subtitle="Optional · choose the live avatar model you want to use for previews." showBack />
-      <ProgressBar progress={6} total={7} />
+    <SafeAreaView className="flex-1" style={{ backgroundColor: palette.ivory }}>
+      <View className="flex-1 px-4 py-4">
+        <AppHeader title="Base model style" subtitle="Step 1 of 4 · start with the style direction preview generated from the default skin tone and body type presets." showBack />
+        <ProgressBar progress={6} total={7} />
 
-      <View className="mt-6 flex-row gap-2">
-        {directions.map((direction) => {
-          const selected = direction === styleDirection;
-          return (
-            <Pressable
-              key={direction}
-              onPress={() => {
-                setStyleDirection(direction);
-                setSelectedModelId(null);
-              }}
-              className="rounded-full px-4 py-2"
-              style={{ backgroundColor: selected ? palette.burgundy : '#FFFFFF', borderWidth: selected ? 0 : 1, borderColor: palette.line }}>
-              <Text className="font-InterMedium text-sm" style={{ color: selected ? '#FFFFFF' : palette.ink }}>{direction === 'menswear' ? 'Menswear' : 'Womenswear'}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+        {baseModelsQuery.isLoading ? (
+          <View className="mt-8 flex-row items-center" style={{ gap: 10 }}>
+            <ActivityIndicator color={palette.burgundy} />
+            <Text className="font-InterRegular text-sm" style={{ color: palette.muted }}>
+              Loading backend base model previews…
+            </Text>
+          </View>
+        ) : null}
 
-      {baseModelsQuery.isLoading ? <Text className="mt-4 font-InterRegular text-sm" style={{ color: palette.muted }}>Loading base avatars…</Text> : null}
-      {baseModelsQuery.isError ? <Text className="mt-4 font-InterRegular text-sm" style={{ color: '#B42318' }}>We couldn’t load base avatars right now.</Text> : null}
-
-      <View className="mt-6 gap-3">
-        {models.map((model) => (
-          <Pressable
-            key={model.id}
-            onPress={() => setSelectedModelId(model.id)}
-            className="overflow-hidden rounded-[22px] bg-white"
-            style={{ borderWidth: activeModelId === model.id ? 2 : 1, borderColor: activeModelId === model.id ? palette.burgundy : palette.line, borderRadius: radius.card }}>
-            <Image source={{ uri: model.imageUrl ?? fallbackModel }} style={{ width: '100%', height: 180 }} contentFit="cover" />
-            <View className="p-4">
-              <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>{model.name}</Text>
-              {model.description ? <Text className="mt-1 font-InterRegular text-sm" style={{ color: palette.muted }}>{model.description}</Text> : null}
+        {baseModelsQuery.isError ? (
+          <View className="mt-8 rounded-[24px] border bg-white p-4" style={{ borderColor: '#E7C9D2' }}>
+            <Text className="font-InterSemiBold text-sm" style={{ color: palette.ink }}>
+              We couldn’t load base models.
+            </Text>
+            <Text className="mt-2 font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+              Retry to continue with the base-model branch.
+            </Text>
+            <View className="mt-4">
+              <SecondaryButton label="Retry" onPress={() => baseModelsQuery.refetch()} />
             </View>
-          </Pressable>
-        ))}
-      </View>
+          </View>
+        ) : null}
 
-      <View className="mt-auto pb-2 pt-4">
-        <View style={{ gap: 12 }}>
-          <SecondaryButton
-            label="Skip avatar"
-            onPress={async () => {
-              await saveMutation.mutateAsync({ avatar_mode: 'skip', avatar_base_model_id: null, status: 'saved' });
-              router.replace('/(onboarding)/done');
-            }}
-            disabled={saveMutation.isPending || selectAvatarMutation.isPending}
-          />
-          <PrimaryButton label={selectAvatarMutation.isPending ? 'Saving…' : 'Continue'} fullWidth onPress={onContinue} disabled={!selectedModel || selectAvatarMutation.isPending || saveMutation.isPending} loading={selectAvatarMutation.isPending || saveMutation.isPending} />
+        <View className="mt-6" style={{ gap: 14 }}>
+          {avatarOptions.styleDirectionOptions.map((option) => {
+            const selected = option.key === selectedDirection;
+
+            return (
+              <Pressable
+                key={option.id}
+                onPress={() => setSelectedDirection(option.key as 'menswear' | 'womenswear')}
+                className="overflow-hidden rounded-[24px] border bg-white"
+                style={{
+                  borderColor: selected ? palette.burgundy : palette.line,
+                  borderWidth: selected ? 2 : 1,
+                  borderRadius: radius.card,
+                  ...shadow.soft,
+                }}>
+                <Image source={{ uri: option.model.imageUrl ?? fallbackBaseModel }} style={{ width: '100%', height: 220 }} contentFit="cover" />
+                <View className="p-4" style={{ gap: 8 }}>
+                  <View className="flex-row items-center justify-between">
+                    <Text className="font-InterSemiBold text-lg" style={{ color: palette.ink }}>
+                      {option.label}
+                    </Text>
+                    <View className="h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: selected ? palette.burgundy : palette.roseFog }}>
+                      {selected ? <Check size={15} color="#FFFFFF" /> : null}
+                    </View>
+                  </View>
+                  <Text className="font-InterRegular text-sm leading-6" style={{ color: palette.muted }}>
+                    Previewing {option.model.skinTonePresetName ?? 'default skin tone'} with {option.model.bodyTypePresetName ?? 'default body type'}.
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View className="mt-auto pb-2 pt-6" style={{ gap: 10 }}>
+          <SecondaryButton label="Back to avatar choice" onPress={() => router.replace('/(onboarding)/avatar')} disabled={saveMutation.isPending} />
+          <PrimaryButton label="Continue" fullWidth onPress={handleContinue} disabled={!selectedDirection || saveMutation.isPending} loading={saveMutation.isPending} />
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const fallbackModel = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80';
+const fallbackBaseModel = 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80';

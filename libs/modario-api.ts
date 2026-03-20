@@ -131,14 +131,30 @@ export type ImportSessionDetail = {
 
 export type BaseAvatarModel = {
   id: string;
-  name: string;
-  styleDirection: string | null;
+  key: string | null;
+  displayName: string;
+  styleDirection: 'menswear' | 'womenswear' | null;
+  skinTonePresetId: string | null;
+  skinTonePresetKey: string | null;
+  skinTonePresetName: string | null;
+  skinToneSortOrder: number | null;
+  skinToneIsDefault: boolean;
+  bodyTypePresetId: string | null;
+  bodyTypePresetKey: string | null;
+  bodyTypePresetName: string | null;
+  bodyTypeSortOrder: number | null;
+  bodyTypeIsDefault: boolean;
+  poseKey: string | null;
+  imagePath: string | null;
   imageUrl: string | null;
+  isDefault: boolean;
+  sortOrder: number | null;
   description: string | null;
 };
 
 export type CurrentAvatar = {
   id: string | null;
+  baseModelId: string | null;
   imageUrl: string | null;
   styleDirection: string | null;
   label: string | null;
@@ -471,6 +487,7 @@ export async function getImportSession(accessToken: string, importSessionId: str
 
 export async function listBaseAvatarModels(accessToken: string, styleDirection?: string | null) {
   const data = await apiRequest<{
+    base_avatars?: unknown[];
     base_models?: unknown[];
     models?: unknown[];
   }>('/avatar/base-models', {
@@ -478,21 +495,61 @@ export async function listBaseAvatarModels(accessToken: string, styleDirection?:
     query: styleDirection ? { style_direction: styleDirection } : undefined,
   });
 
-  const models = (data.base_models ?? data.models ?? []) as Array<Record<string, unknown>>;
+  const models = (data.base_avatars ?? data.base_models ?? data.models ?? []) as Array<Record<string, unknown>>;
 
-  return models.map(
-    (model) =>
-      ({
+  return models
+    .map((model) => {
+      const skinTonePreset = (model.skin_tone_preset ?? {}) as Record<string, unknown>;
+      const bodyTypePreset = (model.body_type_preset ?? {}) as Record<string, unknown>;
+      const styleDirectionValue = typeof model.style_direction === 'string' ? model.style_direction : null;
+
+      return {
         id: String(model.id ?? model.base_model_id ?? ''),
-        name: String(model.name ?? model.label ?? 'Base model'),
-        styleDirection: typeof model.style_direction === 'string' ? model.style_direction : null,
+        key: typeof model.key === 'string' ? model.key : null,
+        displayName: String(model.display_name ?? model.name ?? model.label ?? 'Base model'),
+        styleDirection: styleDirectionValue === 'menswear' || styleDirectionValue === 'womenswear' ? styleDirectionValue : null,
+        skinTonePresetId:
+          (typeof model.skin_tone_preset_id === 'string' ? model.skin_tone_preset_id : null) ??
+          (typeof skinTonePreset.id === 'string' ? skinTonePreset.id : null),
+        skinTonePresetKey:
+          (typeof model.skin_tone_key === 'string' ? model.skin_tone_key : null) ??
+          (typeof skinTonePreset.key === 'string' ? skinTonePreset.key : null),
+        skinTonePresetName:
+          (typeof model.skin_tone_name === 'string' ? model.skin_tone_name : null) ??
+          (typeof skinTonePreset.display_name === 'string' ? skinTonePreset.display_name : null) ??
+          (typeof skinTonePreset.name === 'string' ? skinTonePreset.name : null),
+        skinToneSortOrder:
+          (typeof model.skin_tone_sort_order === 'number' ? model.skin_tone_sort_order : null) ??
+          (typeof skinTonePreset.sort_order === 'number' ? skinTonePreset.sort_order : null),
+        skinToneIsDefault:
+          Boolean(model.skin_tone_is_default) || Boolean(skinTonePreset.is_default),
+        bodyTypePresetId:
+          (typeof model.body_type_preset_id === 'string' ? model.body_type_preset_id : null) ??
+          (typeof bodyTypePreset.id === 'string' ? bodyTypePreset.id : null),
+        bodyTypePresetKey:
+          (typeof model.body_type_key === 'string' ? model.body_type_key : null) ??
+          (typeof bodyTypePreset.key === 'string' ? bodyTypePreset.key : null),
+        bodyTypePresetName:
+          (typeof model.body_type_name === 'string' ? model.body_type_name : null) ??
+          (typeof bodyTypePreset.display_name === 'string' ? bodyTypePreset.display_name : null) ??
+          (typeof bodyTypePreset.name === 'string' ? bodyTypePreset.name : null),
+        bodyTypeSortOrder:
+          (typeof model.body_type_sort_order === 'number' ? model.body_type_sort_order : null) ??
+          (typeof bodyTypePreset.sort_order === 'number' ? bodyTypePreset.sort_order : null),
+        bodyTypeIsDefault:
+          Boolean(model.body_type_is_default) || Boolean(bodyTypePreset.is_default),
+        poseKey: typeof model.pose_key === 'string' ? model.pose_key : null,
+        imagePath: typeof model.image_path === 'string' ? model.image_path : null,
         imageUrl:
-          (typeof model.preview_image_url === 'string' ? model.preview_image_url : null) ??
           (typeof model.image_url === 'string' ? model.image_url : null) ??
+          (typeof model.preview_image_url === 'string' ? model.preview_image_url : null) ??
           (typeof model.display_url === 'string' ? model.display_url : null),
+        isDefault: Boolean(model.is_default),
+        sortOrder: typeof model.sort_order === 'number' ? model.sort_order : null,
         description: typeof model.description === 'string' ? model.description : null,
-      }) satisfies BaseAvatarModel,
-  ).filter((model) => Boolean(model.id));
+      } satisfies BaseAvatarModel;
+    })
+    .filter((model) => Boolean(model.id));
 }
 
 export async function selectBaseAvatar(accessToken: string, baseModelId: string) {
@@ -508,6 +565,9 @@ export async function getCurrentAvatar(accessToken: string) {
 
   return {
     id: typeof avatar.id === 'string' ? avatar.id : null,
+    baseModelId:
+      (typeof avatar.base_model_id === 'string' ? avatar.base_model_id : null) ??
+      (typeof avatar.id === 'string' ? avatar.id : null),
     imageUrl:
       (typeof avatar.image_url === 'string' ? avatar.image_url : null) ??
       (typeof avatar.preview_image_url === 'string' ? avatar.preview_image_url : null) ??

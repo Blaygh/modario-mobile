@@ -9,9 +9,11 @@ export default function OnboardingLayout() {
       <Stack.Screen name="color-preference" options={{ headerShown: false }} />
       <Stack.Screen name="occasions" options={{ headerShown: false }} />
       <Stack.Screen name="avatar" options={{ headerShown: false }} />
+      <Stack.Screen name="avatar-upload" options={{ headerShown: false }} />
       <Stack.Screen name="base-model-gender" options={{ headerShown: false }} />
       <Stack.Screen name="base-model-skin-tone" options={{ headerShown: false }} />
       <Stack.Screen name="base-model-body-type" options={{ headerShown: false }} />
+      <Stack.Screen name="base-model-confirm" options={{ headerShown: false }} />
       <Stack.Screen name="done" options={{ headerShown: false }} />
     </Stack>
   );
