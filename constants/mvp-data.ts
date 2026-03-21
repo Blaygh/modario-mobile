@@ -8,9 +8,30 @@ export const WARDROBE_ITEMS = [
 ];
 
 export const RECOMMENDED_PRODUCTS = [
-  { id: 'p1', name: 'Leather Tote', price: '$120', image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=700&q=80' },
-  { id: 'p2', name: 'White Sneakers', price: '$85', image: 'https://images.unsplash.com/photo-1549298916-f52d724204b4?auto=format&fit=crop&w=700&q=80' },
-  { id: 'p3', name: 'Gold Watch', price: '$140', image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=700&q=80' },
+  {
+    id: 'p1',
+    name: 'Leather Tote',
+    price: '$120',
+    image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=700&q=80',
+    productUrl: null,
+    note: 'Editorial preview only. Direct retail linking is intentionally hidden until live commerce support is available.',
+  },
+  {
+    id: 'p2',
+    name: 'White Sneakers',
+    price: '$85',
+    image: 'https://images.unsplash.com/photo-1549298916-f52d724204b4?auto=format&fit=crop&w=700&q=80',
+    productUrl: null,
+    note: 'Editorial preview only. Direct retail linking is intentionally hidden until live commerce support is available.',
+  },
+  {
+    id: 'p3',
+    name: 'Gold Watch',
+    price: '$140',
+    image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=700&q=80',
+    productUrl: null,
+    note: 'Editorial preview only. Direct retail linking is intentionally hidden until live commerce support is available.',
+  },
 ];
 
 export const IMPORT_DETECTIONS = [
