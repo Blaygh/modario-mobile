@@ -92,12 +92,20 @@ export async function uploadWardrobeImportImage(userId: string, localUri: string
   const extension = fileExtensionFromUri(localUri);
   const randomUuid = Crypto.randomUUID();
   const path = `u_${userId}/imports/${randomUuid}.${extension}`;
+  const contentType = contentTypeFromExtension(extension);
+
+  const { data: signedUpload, error: signedUploadError } = await supabase.storage.from('wardrobe').createSignedUploadUrl(path);
+
+  if (signedUploadError || !signedUpload?.token) {
+    throw new Error(signedUploadError?.message || 'Failed to create signed wardrobe upload URL');
+  }
 
   const imageResponse = await fetch(localUri);
   const imageBlob = await imageResponse.blob();
+  const imageBuffer = await imageBlob.arrayBuffer();
 
-  const { error } = await supabase.storage.from('wardrobe').upload(path, imageBlob, {
-    contentType: contentTypeFromExtension(extension),
+  const { error } = await supabase.storage.from('wardrobe').uploadToSignedUrl(path, signedUpload.token, imageBuffer, {
+    contentType,
     upsert: false,
   });
 

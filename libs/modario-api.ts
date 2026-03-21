@@ -1,3 +1,15 @@
+import {
+  assertArray,
+  assertRecord,
+  assertString,
+  optionalArray,
+  optionalBoolean,
+  optionalNumber,
+  optionalRecord,
+  optionalString,
+  optionalStringArray,
+} from '@/libs/api-validation';
+
 const API_BASE = 'https://api.modario.io';
 
 export type RequestOptions = {
@@ -50,9 +62,24 @@ const toTitle = (value: string) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
-const stringOrNull = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
-const numberOrNull = (value: unknown) => (typeof value === 'number' ? value : typeof value === 'string' && value ? Number(value) : null);
-const arrayOfStrings = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []);
+const stringOrNull = optionalString;
+const numberOrNull = optionalNumber;
+const arrayOfStrings = optionalStringArray;
+
+function suggestionArray(value: unknown) {
+  return optionalArray(value)
+    .map((entry) => optionalRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .map((entry) => ({
+      text: optionalString(entry.text) ?? '',
+      type: optionalString(entry.type) ?? 'note',
+    }))
+    .filter((entry) => entry.text.length > 0);
+}
+
+function assertResponseRecord(payload: unknown, endpoint: string) {
+  return assertRecord(payload, `Malformed response from ${endpoint}.`);
+}
 
 export type RecommendationCandidate = {
   id: string;
@@ -239,18 +266,21 @@ type RecommendationResponse = {
 };
 
 function normalizeRecommendation(record: NonNullable<RecommendationResponse['recommendations']>[number]): RecommendationCandidate {
-  const roleMap = record.role_map ?? {};
+  const roleMap = optionalRecord(record.role_map) ?? {};
 
   return {
-    id: record.id,
-    candidateId: record.id,
+    id: assertString(record.id, 'Recommendation candidate was missing an id.'),
+    candidateId: assertString(record.id, 'Recommendation candidate was missing an id.'),
     previewImageUrl: stringOrNull(record.preview_image_url),
     summary: stringOrNull(record.llm_summary) ?? 'A curated outfit recommendation based on your wardrobe.',
-    suggestions: Array.isArray(record.llm_suggestions) ? record.llm_suggestions : [],
+    suggestions: suggestionArray(record.llm_suggestions),
     tags: arrayOfStrings(record.llm_tags),
     wardrobeItemIds: arrayOfStrings(record.wardrobe_item_ids),
     roles: Object.entries(roleMap)
-      .map(([role, pair]) => ({ role, itemId: pair?.[0] ?? '' }))
+      .map(([role, pair]) => ({
+        role,
+        itemId: Array.isArray(pair) && typeof pair[0] === 'string' ? pair[0] : '',
+      }))
       .filter((entry) => Boolean(entry.itemId)),
     score: numberOrNull(record.score),
     createdAt: stringOrNull(record.created_at),
@@ -284,61 +314,42 @@ function deriveTags(items: SavedOutfitItem[], fallbackTags?: unknown) {
 }
 
 export async function getProfile(accessToken: string) {
-  const data = await apiRequest<{
-    user?: {
-      user_id?: string;
-      display_name?: string | null;
-      country_code?: string | null;
-      locale?: string | null;
-      timezone?: string | null;
-      gender?: string | null;
-    } | null;
-    onboarding?: {
-      is_complete?: boolean;
-      status?: string | null;
-    } | null;
-    preferences?: {
-      color_likes?: string[] | null;
-      color_avoids?: string[] | null;
-      occasions?: string[] | null;
-    } | null;
-    style_profile?: {
-      style_direction?: string | null;
-      style_picks?: string[] | null;
-    } | null;
-    avatar?: {
-      image_url?: string | null;
-      display_url?: string | null;
-      preview_image_url?: string | null;
-      label?: string | null;
-      name?: string | null;
-    } | null;
-  }>('/me', { accessToken });
+  const payload = await apiRequest<unknown>('/me', { accessToken });
+  const data = assertResponseRecord(payload, '/me');
+  const user = optionalRecord(data.user);
+  const onboarding = optionalRecord(data.onboarding);
+  const preferences = optionalRecord(data.preferences);
+  const styleProfile = optionalRecord(data.style_profile);
+  const avatar = optionalRecord(data.avatar);
 
   return {
-    userId: stringOrNull(data.user?.user_id),
-    displayName: stringOrNull(data.user?.display_name) ?? 'Modario member',
-    country: stringOrNull(data.user?.country_code),
-    locale: stringOrNull(data.user?.locale),
-    timezone: stringOrNull(data.user?.timezone),
-    gender: stringOrNull(data.user?.gender),
-    onboardingComplete: data.onboarding?.is_complete === true,
-    onboardingStatus: stringOrNull(data.onboarding?.status),
-    styleDirection: stringOrNull(data.style_profile?.style_direction),
-    stylePicks: arrayOfStrings(data.style_profile?.style_picks),
-    colorLikes: arrayOfStrings(data.preferences?.color_likes),
-    colorAvoids: arrayOfStrings(data.preferences?.color_avoids),
-    occasions: arrayOfStrings(data.preferences?.occasions),
+    userId: stringOrNull(user?.user_id),
+    displayName: stringOrNull(user?.display_name) ?? 'Modario member',
+    country: stringOrNull(user?.country_code),
+    locale: stringOrNull(user?.locale),
+    timezone: stringOrNull(user?.timezone),
+    gender: stringOrNull(user?.gender),
+    onboardingComplete: optionalBoolean(onboarding?.is_complete) === true,
+    onboardingStatus: stringOrNull(onboarding?.status),
+    styleDirection: stringOrNull(styleProfile?.style_direction),
+    stylePicks: arrayOfStrings(styleProfile?.style_picks),
+    colorLikes: arrayOfStrings(preferences?.color_likes),
+    colorAvoids: arrayOfStrings(preferences?.color_avoids),
+    occasions: arrayOfStrings(preferences?.occasions),
     avatarImageUrl:
-      stringOrNull(data.avatar?.image_url) ?? stringOrNull(data.avatar?.display_url) ?? stringOrNull(data.avatar?.preview_image_url),
-    avatarLabel: stringOrNull(data.avatar?.label) ?? stringOrNull(data.avatar?.name),
+      stringOrNull(avatar?.image_url) ?? stringOrNull(avatar?.display_url) ?? stringOrNull(avatar?.preview_image_url),
+    avatarLabel: stringOrNull(avatar?.label) ?? stringOrNull(avatar?.name),
   } satisfies Profile;
 }
 
 export async function getOutfitRecommendations(accessToken: string) {
-  const data = await apiRequest<RecommendationResponse>('/outfits/recommendations', { accessToken });
-  const recommendations = data.recommendations ?? data.recommendationss ?? [];
-  return recommendations.map(normalizeRecommendation);
+  const payload = await apiRequest<unknown>('/outfits/recommendations', { accessToken });
+  const data = assertResponseRecord(payload, '/outfits/recommendations');
+  const recommendations = optionalArray(data.recommendations).length ? data.recommendations : data.recommendationss;
+  const recommendationRows = assertArray(recommendations ?? [], 'Malformed recommendations payload.');
+  return recommendationRows.map((row, index) =>
+    normalizeRecommendation(assertRecord(row, `Recommendation ${index} was malformed.`) as NonNullable<RecommendationResponse['recommendations']>[number]),
+  );
 }
 
 export async function saveCandidate(accessToken: string, candidateId: string, name?: string | null) {
@@ -360,44 +371,42 @@ export async function listSavedOutfits(accessToken: string) {
 }
 
 export async function getSavedOutfitDetail(accessToken: string, outfitId: string) {
-  const data = await apiRequest<{
-    outfit: Record<string, unknown>;
-    items: Array<{
-      item_id: string;
-      role: string;
-      wardrobe_role?: string | null;
-      item_type?: string | null;
-      preview_image_url?: string | null;
-      attributes?: Record<string, unknown>;
-    }>;
-  }>(`/outfits/${outfitId}`, { accessToken });
+  const payload = await apiRequest<unknown>(`/outfits/${outfitId}`, { accessToken });
+  const data = assertResponseRecord(payload, `/outfits/${outfitId}`);
+  const outfit = assertRecord(data.outfit, 'Saved outfit detail was missing outfit data.');
+  const itemRows = assertArray(data.items ?? [], 'Saved outfit detail was missing items.');
 
-  const items: SavedOutfitItem[] = (data.items ?? []).map((item) => ({
-    itemId: item.item_id,
-    role: item.role,
-    wardrobeRole: stringOrNull(item.wardrobe_role),
-    itemType:
-      stringOrNull(item.item_type) ??
-      (typeof item.attributes?.item_type === 'string' ? item.attributes.item_type : null),
-    color:
-      (typeof item.attributes?.color === 'string' ? item.attributes.color : null) ??
-      (typeof item.attributes?.color_base === 'string' ? item.attributes.color_base : null) ??
-      (typeof item.attributes?.color_description === 'string' ? item.attributes.color_description : null),
-    previewImageUrl: stringOrNull(item.preview_image_url),
-    attributes: item.attributes ?? {},
-  }));
+  const items: SavedOutfitItem[] = itemRows.map((row, index) => {
+    const item = assertRecord(row, `Saved outfit item ${index} was malformed.`);
+    const attributes = optionalRecord(item.attributes) ?? {};
+
+    return {
+      itemId: assertString(item.item_id, `Saved outfit item ${index} was missing an item id.`),
+      role: assertString(item.role, `Saved outfit item ${index} was missing a role.`),
+      wardrobeRole: stringOrNull(item.wardrobe_role),
+      itemType:
+        stringOrNull(item.item_type) ??
+        (typeof attributes.item_type === 'string' ? attributes.item_type : null),
+      color:
+        (typeof attributes.color === 'string' ? attributes.color : null) ??
+        (typeof attributes.color_base === 'string' ? attributes.color_base : null) ??
+        (typeof attributes.color_description === 'string' ? attributes.color_description : null),
+      previewImageUrl: stringOrNull(item.preview_image_url),
+      attributes,
+    };
+  });
 
   return {
-    id: String(data.outfit.id ?? outfitId),
-    name: stringOrNull(data.outfit.name) ?? 'Saved outfit',
+    id: String(outfit.id ?? outfitId),
+    name: stringOrNull(outfit.name) ?? 'Saved outfit',
     previewImageUrl:
-      stringOrNull(data.outfit.preview_image_url) ?? items.find((item) => item.previewImageUrl)?.previewImageUrl ?? null,
-    summary: stringOrNull(data.outfit.llm_summary),
-    suggestions: Array.isArray(data.outfit.llm_suggestions) ? (data.outfit.llm_suggestions as Array<{ text: string; type: string }>) : [],
-    tags: deriveTags(items, data.outfit.llm_tags),
+      stringOrNull(outfit.preview_image_url) ?? items.find((item) => item.previewImageUrl)?.previewImageUrl ?? null,
+    summary: stringOrNull(outfit.llm_summary),
+    suggestions: suggestionArray(outfit.llm_suggestions),
+    tags: deriveTags(items, outfit.llm_tags),
     items,
-    createdAt: stringOrNull(data.outfit.created_at),
-    updatedAt: stringOrNull(data.outfit.updated_at),
+    createdAt: stringOrNull(outfit.created_at),
+    updatedAt: stringOrNull(outfit.updated_at),
   } satisfies SavedOutfitDetail;
 }
 
@@ -419,37 +428,27 @@ export async function deleteSavedOutfit(accessToken: string, outfitId: string) {
 }
 
 export async function listPlannedOutfits(accessToken: string, from: string, to: string) {
-  const data = await apiRequest<{
-    planned_outfits: Array<{
-      id: string;
-      outfit_id: string;
-      outfit_name?: string | null;
-      preview_image_url?: string | null;
-      planned_date: string;
-      slot_index?: number;
-      notes?: string | null;
-      reminder_state?: string | null;
-      created_at?: string;
-      updated_at?: string;
-    }>;
-  }>('/planned', { accessToken, query: { from, to } });
+  const payload = await apiRequest<unknown>('/planned', { accessToken, query: { from, to } });
+  const data = assertResponseRecord(payload, '/planned');
+  const plannedOutfits = assertArray(data.planned_outfits ?? [], 'Malformed planned outfits payload.');
 
-  return (data.planned_outfits ?? []).map(
-    (entry) =>
-      ({
-        id: entry.id,
-        outfitId: entry.outfit_id,
-        outfitName: stringOrNull(entry.outfit_name) ?? 'Planned outfit',
-        outfitPreviewImageUrl: stringOrNull(entry.preview_image_url),
-        plannedDate: entry.planned_date,
-        slotIndex: typeof entry.slot_index === 'number' ? entry.slot_index : 0,
-        notes: stringOrNull(entry.notes) ?? '',
-        reminderState:
-          entry.reminder_state === 'requested' ? 'requested' : entry.reminder_state === 'none' ? 'none' : 'unsupported',
-        createdAt: stringOrNull(entry.created_at),
-        updatedAt: stringOrNull(entry.updated_at),
-      }) satisfies PlannedOutfit,
-  );
+  return plannedOutfits.map((row, index) => {
+    const entry = assertRecord(row, `Planned outfit ${index} was malformed.`);
+
+    return {
+      id: assertString(entry.id, `Planned outfit ${index} was missing an id.`),
+      outfitId: assertString(entry.outfit_id, `Planned outfit ${index} was missing an outfit id.`),
+      outfitName: stringOrNull(entry.outfit_name) ?? 'Planned outfit',
+      outfitPreviewImageUrl: stringOrNull(entry.preview_image_url),
+      plannedDate: assertString(entry.planned_date, `Planned outfit ${index} was missing a planned date.`),
+      slotIndex: typeof entry.slot_index === 'number' ? entry.slot_index : 0,
+      notes: stringOrNull(entry.notes) ?? '',
+      reminderState:
+        entry.reminder_state === 'requested' ? 'requested' : entry.reminder_state === 'none' ? 'none' : 'unsupported',
+      createdAt: stringOrNull(entry.created_at),
+      updatedAt: stringOrNull(entry.updated_at),
+    } satisfies PlannedOutfit;
+  });
 }
 
 export async function createPlannedOutfit(
@@ -727,8 +726,9 @@ export async function selectBaseAvatar(accessToken: string, baseModelId: string)
 }
 
 export async function getCurrentAvatar(accessToken: string) {
-  const data = await apiRequest<Record<string, unknown>>('/avatar/current', { accessToken });
-  const avatar = (data.avatar ?? data.current_avatar ?? data) as Record<string, unknown>;
+  const payload = await apiRequest<unknown>('/avatar/current', { accessToken });
+  const data = assertResponseRecord(payload, '/avatar/current');
+  const avatar = optionalRecord(data.avatar) ?? optionalRecord(data.current_avatar) ?? data;
 
   return {
     id: stringOrNull(avatar.id),
@@ -740,49 +740,49 @@ export async function getCurrentAvatar(accessToken: string) {
 }
 
 export async function getBillingEntitlement(accessToken: string) {
-  const data = await apiRequest<{
-    entitlement: {
-      plan_key?: string | null;
-      status: string;
-      is_entitled: boolean;
-      current_period_end?: string | null;
-      cancel_at_period_end?: boolean;
-      updated_at?: string | null;
-    };
-  }>('/billing/me', { accessToken });
+  const payload = await apiRequest<unknown>('/billing/me', { accessToken });
+  const data = assertResponseRecord(payload, '/billing/me');
+  const entitlement = assertRecord(data.entitlement, 'Billing entitlement payload was malformed.');
 
   return {
-    planKey: stringOrNull(data.entitlement.plan_key),
-    status: data.entitlement.status,
-    isEntitled: data.entitlement.is_entitled,
-    currentPeriodEnd: stringOrNull(data.entitlement.current_period_end),
-    cancelAtPeriodEnd: data.entitlement.cancel_at_period_end === true,
-    updatedAt: stringOrNull(data.entitlement.updated_at),
+    planKey: stringOrNull(entitlement.plan_key),
+    status: assertString(entitlement.status, 'Billing entitlement was missing a status.'),
+    isEntitled: optionalBoolean(entitlement.is_entitled) === true,
+    currentPeriodEnd: stringOrNull(entitlement.current_period_end),
+    cancelAtPeriodEnd: optionalBoolean(entitlement.cancel_at_period_end) === true,
+    updatedAt: stringOrNull(entitlement.updated_at),
   } satisfies BillingEntitlement;
 }
 
 export async function getBillingPlans(accessToken: string) {
-  const data = await apiRequest<{ billing_plans: Array<{ key: string; name: string; stripe_price_id: string; interval: string }> }>('/billing/plans', {
-    accessToken,
-  });
+  const payload = await apiRequest<unknown>('/billing/plans', { accessToken });
+  const data = assertResponseRecord(payload, '/billing/plans');
+  const plans = assertArray(data.billing_plans ?? [], 'Billing plans payload was malformed.');
 
-  return (data.billing_plans ?? []).map(
-    (plan) =>
-      ({
-        key: plan.key,
-        name: plan.name,
-        stripePriceId: plan.stripe_price_id,
-        interval: plan.interval,
-      }) satisfies BillingPlan,
-  );
+  return plans.map((row, index) => {
+    const plan = assertRecord(row, `Billing plan ${index} was malformed.`);
+
+    return {
+      key: assertString(plan.key, `Billing plan ${index} was missing a key.`),
+      name: assertString(plan.name, `Billing plan ${index} was missing a name.`),
+      stripePriceId: assertString(plan.stripe_price_id, `Billing plan ${index} was missing a Stripe price id.`),
+      interval: assertString(plan.interval, `Billing plan ${index} was missing an interval.`),
+    } satisfies BillingPlan;
+  });
 }
 
 export async function createBillingCheckoutSession(accessToken: string, planKey: string) {
-  return apiRequest<BillingCheckoutSession>('/billing/checkout-session', {
+  const payload = await apiRequest<unknown>('/billing/checkout-session', {
     accessToken,
     method: 'POST',
     body: { plan_key: planKey },
   });
+
+  const data = assertResponseRecord(payload, '/billing/checkout-session');
+
+  return {
+    url: assertString(data.url, 'Billing checkout response was missing a URL.'),
+  } satisfies BillingCheckoutSession;
 }
 
 export { apiRequest, toTitle };

@@ -1,178 +1,116 @@
-# Modario App Services — Reconstructed API Contracts for UI Team
+# Modario Mobile Frontend Integration Contract
 
-This document is a best-effort reconstructed API catalog based on the current architecture and implementation details discussed so far. It is intended for the UI team to integrate against the app services.
+This document is the **canonical frontend integration note** for the mobile client in this repository. It reflects the contracts the current app actually consumes and normalizes.
 
-## Confidence / Scope Notes
+It is not a generated OpenAPI file. Where the backend may expose richer payloads, this document intentionally describes the subset the mobile app depends on for the release candidate.
 
-This is **not** a code-generated OpenAPI spec. It is reconstructed from the current backend design across auth, onboarding, wardrobe, outfits, billing, and recommendation flows.
+## Conventions
 
-- **Confirmed** endpoints are directly referenced in implementation discussions.
-- **Derived** endpoints are strongly implied by current flow and data orchestration.
-- Some response fields remain implementation-dependent and should be finalized against live code before public release.
-
----
-
-## 1) Service Map
-
-Current backend shape appears to be:
-
-- Supabase Edge Functions for client-facing onboarding/bundle/orchestration endpoints
-- Django app services for auth, billing, wardrobe processing, outfits, and internal async work
-- Celery workers for async jobs
-- Supabase Storage for avatar references, generated item cutouts, and preview images
-- Postgres as system of record
-
-Major domains:
-
-- Auth / sessions
-- Onboarding
-- Avatar generation
-- Wardrobe items + wardrobe imports
-- Outfit candidates + generated outfits
-- Recommendations
-- Billing / subscriptions / entitlements
-- User profile / settings
+- Base API: `https://api.modario.io`
+- Auth: `Authorization: Bearer <access_token>`
+- Content type: `application/json`
+- Supabase is used directly for some authenticated reads/writes and Storage uploads.
+- Runtime normalization happens in `libs/onboarding-bundle.ts`, `libs/onboarding-service.ts`, and `libs/modario-api.ts`.
 
 ---
 
-## 2) Authentication Conventions
+## 1. Bootstrap and onboarding
 
-### 2.1 Client Authentication
+### 1.1 `GET /me`
+Used for:
+- session-aware bootstrap
+- route gating
+- profile/account summary
+- billing/account refresh side effects
 
-Hybrid approach:
-
-- Frontend session management via NextAuth.js
-- JWT-based backend authentication issued by auth service
-- Some client-facing routes may rely on Supabase auth context for Edge Functions
-
-### 2.2 Internal Service Authentication
-
-- HMAC-based internal signing headers
-- Internal tokens/shared secrets for trusted callbacks
-
-### 2.3 Common Headers
-
-**Client-authenticated requests**
-
-- `Authorization: Bearer <access_token>`
-- `Content-Type: application/json`
-
-**Internal callback requests**
-
-- `Content-Type: application/json`
-- HMAC/internal auth headers
-
----
-
-## 3) Onboarding Endpoints
-
-### 3.1 Get Onboarding Bundle
-
-**Status:** Confirmed  
-**Type:** Supabase Edge Function  
-**Route:** `POST /functions/v1/get-onboarding-bundle`
-
-#### Purpose
-
-Returns data required to render onboarding.
-
-#### Request Body
+Expected response subset:
 
 ```json
 {
-  "style_direction": "womenswear",
-  "skin_tone": "medium",
-  "body_type": "average"
-}
-```
-
-All fields appear optional.
-
-#### Response
-
-```json
-{
-  "version": 1,
-  "style_cards": [
-    {
-      "id": "uuid",
-      "title": "Minimal neutral casual",
-      "intent": "onboarding",
-      "display_order": 1,
-      "variant": {
-        "card_id": "uuid",
-        "variant_key": "female_medium_default",
-        "img_url": "https://...",
-        "is_default": true
-      }
-    }
-  ],
-  "colors": [{ "key": "black", "label": "Black" }],
-  "avoid_presets": [{ "key": "no_neons", "label": "Avoid neon colors" }],
-  "occasions": [
-    { "key": "everyday", "label": "Everyday" },
-    { "key": "work", "label": "Work" }
-  ]
-}
-```
-
----
-
-### 3.2 Submit / Upsert Onboarding State
-
-**Status:** Derived (strongly implied)  
-**Type:** Edge function or equivalent app endpoint  
-**Likely Route:** `POST /functions/v1/submit-onboarding-state`
-
-#### Purpose
-
-Incrementally saves onboarding selections.
-
-#### Request Body (subset allowed)
-
-```json
-{
-  "style_direction": "menswear",
-  "style_picks": ["card_key_1", "card_key_2"],
-  "color_likes": ["black", "white", "burgundy"],
-  "color_avoids": ["neon_green"],
-  "occasions": ["everyday", "work"],
-  "avatar_mode": "base",
-  "avatar_image_urls": [],
-  "avatar_skin_tone_preset_id": "uuid",
-  "avatar_body_type_preset_id": "uuid",
-  "avatar_base_model_id": "uuid",
-  "is_complete": false
-}
-```
-
-#### Likely Response
-
-```json
-{
-  "ok": true,
-  "onboarding_state": {
+  "user": {
     "user_id": "uuid",
-    "status": "saved",
-    "is_complete": false,
-    "updated_at": "2026-03-05T18:00:00Z"
+    "display_name": "Jane",
+    "country_code": "US",
+    "locale": "en-US",
+    "timezone": "America/New_York",
+    "gender": "female"
+  },
+  "onboarding": {
+    "is_complete": true,
+    "status": "done",
+    "processing_request_id": "uuid-or-null",
+    "updated_at": "2026-03-20T00:00:00Z"
+  },
+  "preferences": {
+    "color_likes": ["black", "cream"],
+    "color_avoids": ["neon_green"],
+    "occasions": ["work", "travel"]
+  },
+  "style_profile": {
+    "style_direction": "womenswear",
+    "style_picks": ["tailored_minimal", "soft_structure"]
+  },
+  "avatar": {
+    "image_url": "https://...",
+    "label": "Soft tailored base"
   }
 }
 ```
 
----
+### 1.2 `public.onboarding_states`
+Read/write is done directly through Supabase for the authenticated user.
 
-### 3.3 Process Onboarding
+Important fields consumed by the app:
 
-**Status:** Confirmed  
-**Type:** Supabase Edge Function  
-**Route:** `POST /functions/v1/process-onboarding`
+```json
+{
+  "user_id": "uuid",
+  "style_direction": "womenswear",
+  "style_picks": ["tailored_minimal"],
+  "color_likes": ["black"],
+  "color_avoids": [],
+  "occasions": ["work"],
+  "avatar_mode": "upload",
+  "avatar_image_urls": ["u_<id>/reference/front.jpg"],
+  "avatar_base_model_id": null,
+  "avatar_skin_tone_preset_id": null,
+  "avatar_body_type_preset_id": null,
+  "avatar_final_image_url": null,
+  "is_complete": false,
+  "status": "saved",
+  "style_status": null,
+  "avatar_status": "saved",
+  "processing_request_id": null,
+  "processed_at": null,
+  "fully_processed": false,
+  "fully_processed_at": null,
+  "updated_at": "2026-03-20T00:00:00Z",
+  "last_error": null
+}
+```
 
-#### Purpose
+### 1.3 `POST /functions/v1/get-onboarding-bundle`
+Request subset:
 
-Triggers asynchronous onboarding processing.
+```json
+{
+  "style_direction": "womenswear"
+}
+```
 
-#### Response
+Response subsets used by the app:
+- `style_cards`
+- `colors`
+- `avoid_presets`
+- `occasions`
+- `base_avatar_flow`
+
+The mobile client validates these collections at runtime before rendering onboarding.
+
+### 1.4 `POST /functions/v1/process-onboarding`
+Used only after onboarding submit. Processing is non-blocking.
+
+Expected subset:
 
 ```json
 {
@@ -182,271 +120,468 @@ Triggers asynchronous onboarding processing.
 }
 ```
 
+### Routing contract
+The app routes using this precedence:
+1. no session → auth
+2. session + backend onboarding incomplete → onboarding
+3. session + backend onboarding complete → tabs
+
+AsyncStorage is cache only, never the final authority.
+
 ---
 
-### 3.4 Get Onboarding Status
+## 2. Avatar flows
 
-**Status:** Derived (strongly implied)  
-**Likely Route:** `GET /onboarding/state` (or edge variant)
+### 2.1 Storage uploads
+Buckets:
+- `avatars`
 
-#### Purpose
+Upload model:
+- create signed upload URL
+- upload reference image with signed token
+- persist resulting storage path in onboarding state and `user_images`
 
-Polls stage and processing completion.
+Expected storage path pattern:
 
-#### Response
+```text
+u_<user_id>/reference/<uuid>.<ext>
+```
+
+### 2.2 `GET /avatar/base-models`
+Used to populate base-model selection. Consumed subset:
 
 ```json
 {
-  "user_id": "uuid",
-  "status": "processing",
-  "style_status": "done",
-  "avatar_status": "processing",
-  "is_complete": true,
-  "fully_processed": false,
-  "processing_request_id": "uuid",
-  "avatar_final_image_url": null,
-  "last_error": null,
-  "updated_at": "2026-03-05T18:00:00Z",
-  "processed_at": null
+  "models": [
+    {
+      "id": "uuid",
+      "key": "soft-tailored-default",
+      "display_name": "Soft Tailored",
+      "style_direction": "womenswear",
+      "skin_tone_preset_id": "uuid",
+      "skin_tone_preset_key": "medium",
+      "skin_tone_preset_name": "Medium",
+      "body_type_preset_id": "uuid",
+      "body_type_preset_key": "straight",
+      "body_type_preset_name": "Straight",
+      "image_url": "https://...",
+      "is_default": true,
+      "sort_order": 1
+    }
+  ]
 }
 ```
 
----
+### 2.3 `POST /avatar/base-models/{id}/select`
+Used when the user confirms a base avatar model.
 
-### 3.5 Onboarding Processing Callback (Internal)
-
-**Status:** Confirmed internal  
-**Route:** `POST /functions/v1/onboarding-processing-callback`
-
-Not called by UI.
+### 2.4 `GET /avatar/current`
+Used for profile/avatar summary and onboarding continuity.
 
 ---
 
-## 4) Avatar Endpoints
+## 3. Wardrobe
 
-### 4.1 List Base Avatar Models
+### 3.1 Storage uploads
+Bucket:
+- `wardrobe`
 
-**Status:** Derived (strongly implied)  
-**Likely Route:** `GET /avatars/base-models`
+Upload model:
+- create signed upload URL
+- upload import image using signed token
+- send resulting storage paths to import creation endpoint
 
-### 4.2 Avatar Upload During Onboarding
+Expected storage path pattern:
 
-**Status:** Confirmed flow  
-Uploads to Supabase Storage using paths such as:
+```text
+u_<user_id>/imports/<uuid>.<ext>
+```
 
-`avatars/{user_id}/reference/{uuid}.jpg`
-
----
-
-## 5) Wardrobe Endpoints
-
-### 5.1 Create Wardrobe Import Session
-
-**Status:** Confirmed by flow structure  
-**Likely Route:** `POST /wardrobe/imports`
-
-### 5.2 Get Wardrobe Import Session
-
-**Status:** Derived  
-**Likely Route:** `GET /wardrobe/imports/{import_session_id}`
-
-### 5.3 Confirm Detected Items
-
-**Status:** Derived (strongly implied)  
-**Likely Route:** `POST /wardrobe/imports/{import_session_id}/confirm`
-
-### 5.4 List Wardrobe Items
-
-**Status:** Confirmed contract shape  
-**Likely Route:** `GET /wardrobe/items`
-
-### 5.5 Update Wardrobe Item
-
-**Status:** Derived  
-**Likely Route:** `PATCH /wardrobe/items/{item_id}`
-
-### 5.6 Delete/Archive Wardrobe Item
-
-**Status:** Derived  
-**Likely Route:** `DELETE /wardrobe/items/{item_id}`
-
----
-
-## 6) Outfits / Candidates / Planning Endpoints
-
-### 6.1 Trigger Outfit Generation
-
-**Status:** Derived (strongly implied)  
-**Likely Route:** `POST /outfits/generate`
-
-### 6.2 List Outfit Candidates
-
-**Status:** Confirmed by schema support  
-**Likely Route:** `GET /outfit-candidates`
-
-### 6.3 List Final Outfits
-
-**Status:** Confirmed by outfits table + promotion flow  
-**Likely Route:** `GET /outfits`
-
-### 6.4 Outfit Details
-
-**Status:** Derived  
-**Likely Route:** `GET /outfits/{outfit_id}`
-
-### 6.5 Save / Rename Outfit
-
-**Status:** Derived  
-**Likely Route:** `PATCH /outfits/{outfit_id}`
-
-### 6.6 Delete Outfit
-
-**Status:** Derived  
-**Likely Route:** `DELETE /outfits/{outfit_id}`
-
-### 6.7 Plan Outfit
-
-**Status:** Derived  
-**Likely Routes:**
-
-- `POST /outfits/{outfit_id}/plan`
-- `GET /outfit-plans`
-- `DELETE /outfit-plans/{plan_id}`
-
----
-
-## 7) Recommendation Endpoints
-
-### 7.1 Get Recommendations
-
-**Status:** Derived from recommendation pipeline  
-**Likely Route:** `GET /recommendations`
-
-Supports item or outfit recommendation views.
-
----
-
-## 8) Billing / Entitlements Endpoints
-
-### 8.1 Create Checkout Session
-
-**Status:** Confirmed  
-**Route:** `POST /billing/checkout-session`
-
-### 8.2 Stripe Webhook
-
-**Status:** Confirmed internal  
-**Route:** `POST /stripe/webhook`
-
-### 8.3 Get Subscription / Entitlements
-
-**Status:** Derived (strongly implied)  
-**Likely Route:** `GET /billing/subscription`
-
----
-
-## 9) Auth Endpoints (Derived)
-
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-- `GET /auth/me`
-
----
-
-## 10) Profile Endpoints (Derived)
-
-- `GET /profile`
-- `PATCH /profile`
-
----
-
-## 11) Core Domain DTOs
-
-### Item DTO (derived)
+### 3.2 `POST /wardrobe/imports`
+Request:
 
 ```json
 {
-  "id": "uuid",
-  "user_id": "uuid",
-  "role": "top",
-  "item_type": "shirt",
-  "attributes": { "color": "white", "style": ["minimal"], "img_url": "https://..." },
-  "active": true,
-  "metadata": {},
-  "generated_image_path": "path/to/cutout.png"
+  "source_image_urls": [
+    "u_<user>/imports/a.jpg",
+    "u_<user>/imports/b.jpg"
+  ]
 }
 ```
 
-### Candidate DTO (derived)
+Response subset:
 
 ```json
 {
-  "id": "uuid",
-  "user_id": "uuid",
-  "wardrobe_item_ids": ["uuid"],
-  "role_map": { "top": ["uuid", "https://..."] },
-  "score": 0.77,
-  "is_complete": false,
-  "missing_roles": ["bottom", "shoes"],
-  "preview_image_url": null,
-  "created_at": "..."
+  "import_sessions": [
+    {
+      "id": "uuid",
+      "status": "uploaded"
+    }
+  ]
 }
 ```
 
-### Outfit DTO (derived)
+### 3.3 `GET /wardrobe/imports/{id}`
+The app polls the **exact session ID** created by the user.
+
+Response subset:
 
 ```json
 {
-  "id": "uuid",
-  "user_id": "uuid",
-  "wardrobe_item_ids": ["uuid", "uuid"],
-  "is_complete": true,
-  "preview_image_url": "https://...",
-  "llm_summary": "...",
-  "source": "generated",
-  "created_at": "...",
-  "updated_at": "..."
+  "import_session": {
+    "id": "uuid",
+    "status": "review_required",
+    "last_error": null
+  },
+  "source_image": {
+    "storage_url": "u_<user>/imports/a.jpg"
+  },
+  "detected_items": [
+    {
+      "detected_item_id": "uuid",
+      "role_suggestion": "top",
+      "label": "White shirt",
+      "confidence": 0.92,
+      "crop_storage_url": "https://...",
+      "attributes_preview": {
+        "color": "white"
+      }
+    }
+  ],
+  "imported_count": 2
 }
 ```
 
+Statuses used by the app:
+- `uploaded`
+- `detecting`
+- `review_required`
+- `committed`
+- `failed`
+
+### 3.4 `POST /wardrobe/imports/{id}/commit`
+Request:
+
+```json
+{
+  "decisions": [
+    {
+      "detected_item_id": "uuid",
+      "include": true,
+      "role_override": "top"
+    }
+  ]
+}
+```
+
+Response subset:
+
+```json
+{
+  "status": "committed",
+  "imported_count": 2
+}
+```
+
+### 3.5 `GET /items`
+List wardrobe items.
+
+Query params used:
+- `limit`
+- `offset`
+- `active`
+- `role`
+
+### 3.6 `GET /wardrobe/items/{id}`
+Wardrobe detail source of truth. No mock detail should be mixed with this domain.
+
+Response subset:
+
+```json
+{
+  "item": {
+    "id": "uuid",
+    "role": "top",
+    "item_type": "shirt",
+    "attributes": { "color": "white" },
+    "metadata": {},
+    "active": true,
+    "source_import_session_id": "uuid",
+    "source_detected_item_id": "uuid",
+    "updated_at": "2026-03-20T00:00:00Z",
+    "created_at": "2026-03-20T00:00:00Z"
+  },
+  "image": {
+    "display_url": "https://...",
+    "status": "ready",
+    "last_error": null
+  }
+}
+```
+
+### 3.7 `PATCH /wardrobe/items/{id}`
+Editable subset used by the app:
+
+```json
+{
+  "role": "outerwear",
+  "active": false,
+  "item_type": "blazer",
+  "attributes": { "color": "beige" },
+  "metadata": {}
+}
+```
+
+### 3.8 `DELETE /wardrobe/items/{id}`
+Treated by the app as a real archive/delete action depending on backend semantics. Archived visibility is preserved in the wardrobe UI.
+
 ---
 
-## 12) Enum Reference
+## 4. Outfit recommendations and saved outfits
 
-- `style_direction`: `womenswear | menswear`
-- `avatar_mode`: `upload | base | skip`
-- onboarding `status`: `saved | queued | processing | done | failed`
+### 4.1 `GET /outfits/recommendations`
+Returns recommendation **candidates**, not saved outfits.
 
-Outfit generation behavior (current known):
+Response subset:
 
-- start at 2 active wardrobe items
-- 2–4: generate on each change
-- 5+: generate when delta since last run is at least 3
+```json
+{
+  "recommendations": [
+    {
+      "id": "candidate_uuid",
+      "wardrobe_item_ids": ["item_1", "item_2"],
+      "role_map": {
+        "top": ["item_1", "shirt"],
+        "bottom": ["item_2", "trouser"]
+      },
+      "score": 0.89,
+      "llm_summary": "Soft tailored layers for work.",
+      "llm_tags": ["tailored", "neutral"],
+      "llm_suggestions": [
+        { "text": "Swap in loafers for a sharper finish.", "type": "styling" }
+      ],
+      "preview_image_url": "https://...",
+      "created_at": "2026-03-20T00:00:00Z"
+    }
+  ]
+}
+```
+
+### 4.2 `POST /candidates/save`
+Converts a recommendation candidate into a saved outfit.
+
+Request:
+
+```json
+{
+  "candidate_id": "candidate_uuid",
+  "name": "Optional custom name"
+}
+```
+
+Response subset:
+
+```json
+{
+  "outfit": {
+    "id": "saved_outfit_uuid",
+    "name": "Saved outfit",
+    "preview_image_url": "https://..."
+  }
+}
+```
+
+### 4.3 `GET /outfits/`
+List saved outfits.
+
+### 4.4 `GET /outfits/{id}`
+Saved outfit detail response subset:
+
+```json
+{
+  "outfit": {
+    "id": "uuid",
+    "name": "Work layers",
+    "preview_image_url": "https://...",
+    "llm_summary": "Balanced smart-casual look.",
+    "llm_tags": ["work", "neutral"],
+    "llm_suggestions": [
+      { "text": "Add a structured tote.", "type": "styling" }
+    ]
+  },
+  "items": [
+    {
+      "item_id": "wardrobe_uuid",
+      "role": "top",
+      "wardrobe_role": "top",
+      "item_type": "shirt",
+      "preview_image_url": "https://...",
+      "attributes": { "color": "white" }
+    }
+  ]
+}
+```
+
+### 4.5 `PATCH /outfits/{id}`
+Used only for rename:
+
+```json
+{
+  "name": "New name"
+}
+```
+
+### 4.6 `DELETE /outfits/{id}`
+Deletes the saved outfit.
 
 ---
 
-## 13) Suggested UI Integration Order
+## 5. Planner
 
-1. Auth/session + onboarding bundle/save/process/status
-2. Wardrobe import create/poll/review/confirm + wardrobe list
-3. Outfit generation/candidates/outfits/details/planning
-4. Billing checkout + entitlement-driven UI gating + recommendations
+### 5.1 `GET /planned`
+Query params used:
+- `from`
+- `to`
+
+Response subset:
+
+```json
+{
+  "planned_outfits": [
+    {
+      "id": "plan_uuid",
+      "outfit_id": "saved_outfit_uuid",
+      "outfit_name": "Work layers",
+      "preview_image_url": "https://...",
+      "planned_date": "2026-03-20",
+      "slot_index": 1,
+      "notes": "Client dinner",
+      "reminder_state": "none",
+      "created_at": "2026-03-20T00:00:00Z",
+      "updated_at": "2026-03-20T00:00:00Z"
+    }
+  ]
+}
+```
+
+### 5.2 `POST /planned`
+Request:
+
+```json
+{
+  "outfit_id": "saved_outfit_uuid",
+  "planned_date": "2026-03-20",
+  "slot_index": 0,
+  "notes": "Travel day"
+}
+```
+
+### 5.3 `PATCH /planned/{plan_id}`
+Used for updating slot and notes (and resending the outfit ID currently bound to the plan):
+
+```json
+{
+  "outfit_id": "saved_outfit_uuid",
+  "slot_index": 2,
+  "notes": "Move to evening slot"
+}
+```
+
+### 5.4 `DELETE /planned/{plan_id}`
+Deletes a plan entry.
+
+Planner assumptions:
+- multiple outfits per day are supported using `slot_index`
+- reminder state may be present, but delivery is not faked if unsupported
 
 ---
 
-## 14) Pending Backend Confirmation
+## 6. Billing
 
-- Exact route names for wardrobe CRUD / outfits / planning / recommendations
-- Exact auth payload shapes
-- Which client routes are Edge Functions vs Django
-- Final profile/settings response shapes
+### 6.1 `GET /billing/me`
+Response subset:
+
+```json
+{
+  "entitlement": {
+    "plan_key": "premium_monthly",
+    "status": "active",
+    "is_entitled": true,
+    "current_period_end": "2026-04-20T00:00:00Z",
+    "cancel_at_period_end": false,
+    "updated_at": "2026-03-20T00:00:00Z"
+  }
+}
+```
+
+### 6.2 `GET /billing/plans`
+Response subset:
+
+```json
+{
+  "billing_plans": [
+    {
+      "key": "premium_monthly",
+      "name": "Premium Monthly",
+      "stripe_price_id": "price_123",
+      "interval": "month"
+    }
+  ]
+}
+```
+
+### 6.3 `POST /billing/checkout-session`
+Request:
+
+```json
+{
+  "plan_key": "premium_monthly"
+}
+```
+
+Response subset:
+
+```json
+{
+  "url": "https://checkout.stripe.com/..."
+}
+```
+
+Post-return app behavior:
+- billing success screen invalidates entitlement
+- billing UI refreshes live state
+- unsupported manage/cancel actions remain hidden
 
 ---
 
-## 15) Recommended Next Step
+## 7. Query-key expectations
 
-Promote this to a backend-owned source of truth:
+React Query keys used by the app:
+- `me`
+- `onboardingState`
+- `onboardingBundle`
+- `baseModels`
+- `currentAvatar`
+- `outfitRecommendations`
+- `savedOutfits`
+- `savedOutfitDetail`
+- `plannedOutfits`
+- `wardrobeItems`
+- `wardrobeItemDetail`
+- `wardrobeImportSession`
+- `billingPlans`
+- `billingEntitlement`
 
-1. OpenAPI spec (preferred), or
-2. versioned UI integration contract covering only client-facing endpoints.
+Mutations invalidate related domain keys so the launch loop remains coherent.
+
+---
+
+## 8. Honesty rules enforced by the frontend
+
+- Backend truth wins for routing and auth-sensitive onboarding decisions.
+- Wardrobe detail uses live backend data only.
+- Recommendation candidates and saved outfits are treated as separate concepts.
+- Candidate planning auto-saves before plan creation.
+- Planner reminder delivery is not faked.
+- Discover commerce actions stay hidden until they are truly supported.

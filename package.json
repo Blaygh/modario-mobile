@@ -12,7 +12,9 @@
     "web:offline": "EXPO_OFFLINE=1 EXPO_NO_DOCTOR=1 expo start --web --offline",
     "typecheck": "tsc --noEmit",
     "smoke:onboarding": "node ./scripts/smoke-onboarding.mjs",
-    "smoke:bootstrap": "node ./scripts/smoke-auth-bootstrap.mjs"
+    "smoke:bootstrap": "node ./scripts/smoke-auth-bootstrap.mjs",
+    "smoke:wardrobe": "node ./scripts/smoke-wardrobe-outfits.mjs",
+    "smoke:billing": "node ./scripts/smoke-billing.mjs"
   },
   "dependencies": {
     "@expo/html-elements": "^0.10.1",

@@ -1,5 +1,6 @@
 import { supabase } from '@/libs/supabase';
 import { StyleDirection } from '@/types';
+import { assertRecord, optionalBoolean, optionalRecord, optionalString } from '@/libs/api-validation';
 
 const API_BASE = 'https://api.modario.io';
 
@@ -133,6 +134,38 @@ export function normalizeOnboardingState(row: OnboardingStateRow | null | undefi
   };
 }
 
+function normalizeMeResponse(payload: unknown): MeResponse {
+  const record = assertRecord(payload, 'Malformed /me response.');
+  const user = optionalRecord(record.user);
+  const onboarding = optionalRecord(record.onboarding);
+
+  return {
+    user: user
+      ? {
+          user_id: optionalString(user.user_id) ?? '',
+          display_name: optionalString(user.display_name),
+          country_code: optionalString(user.country_code),
+          locale: optionalString(user.locale),
+          timezone: optionalString(user.timezone),
+          gender: optionalString(user.gender),
+          created_at: optionalString(user.created_at),
+          updated_at: optionalString(user.updated_at),
+        }
+      : null,
+    onboarding: onboarding
+      ? {
+          is_complete: optionalBoolean(onboarding.is_complete) === true,
+          status: (optionalString(onboarding.status) as OnboardingStatus | null) ?? null,
+          processing_request_id: optionalString(onboarding.processing_request_id),
+          updated_at: optionalString(onboarding.updated_at),
+        }
+      : null,
+    preferences: record.preferences,
+    style_profile: record.style_profile,
+    avatar: record.avatar,
+  };
+}
+
 async function getCurrentUserId() {
   const {
     data: { user },
@@ -177,7 +210,8 @@ async function apiRequest<T>(path: string, accessToken: string, init?: RequestIn
 }
 
 export async function getMe(accessToken: string) {
-  return apiRequest<MeResponse>('/me', accessToken);
+  const payload = await apiRequest<unknown>('/me', accessToken);
+  return normalizeMeResponse(payload);
 }
 
 export async function getOnboardingState() {
